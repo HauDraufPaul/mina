@@ -12,13 +12,18 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "MINA - Monitoring, Intelligence, Networking, Automation",
         "width": 1400,
         "height": 900,
         "minWidth": 1200,
         "minHeight": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": true,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false
       }
     ],
     "security": {

@@ -191,7 +191,7 @@ impl OllamaProvider {
             stream: false,
         };
 
-        let mut response = self
+        let response = self
             .client
             .post(&url)
             .json(&request)
@@ -199,8 +199,8 @@ impl OllamaProvider {
             .await
             .context("Failed to send chat request to Ollama")?;
 
-        if !response.status().is_success() {
-            let status = response.status();
+        let status = response.status();
+        if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
             anyhow::bail!("Ollama API error: {} - {}", status, error_text);
         }

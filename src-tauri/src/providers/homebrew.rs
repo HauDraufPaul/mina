@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use tokio::process::Command;
 use std::str;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,21 +27,25 @@ impl HomebrewProvider {
     }
 
     pub fn is_available() -> bool {
-        Command::new("brew")
+        std::process::Command::new("brew")
             .arg("--version")
             .output()
             .is_ok()
     }
 
-    pub fn list_installed(&self) -> Result<Vec<HomebrewPackage>, String> {
+    pub async fn list_installed(&self) -> Result<Vec<HomebrewPackage>, String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["list", "--versions"])
             .output()
-            .map_err(|e| format!("Failed to run brew list: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to run brew list: {}", e)),
+        };
 
         if !output.status.success() {
             return Err("brew list command failed".to_string());
@@ -68,15 +72,19 @@ impl HomebrewProvider {
         Ok(packages)
     }
 
-    pub fn list_outdated(&self) -> Result<Vec<String>, String> {
+    pub async fn list_outdated(&self) -> Result<Vec<String>, String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["outdated"])
             .output()
-            .map_err(|e| format!("Failed to run brew outdated: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to run brew outdated: {}", e)),
+        };
 
         if !output.status.success() {
             return Err("brew outdated command failed".to_string());
@@ -88,15 +96,19 @@ impl HomebrewProvider {
         Ok(stdout.lines().map(|s| s.to_string()).collect())
     }
 
-    pub fn get_dependencies(&self, package: &str) -> Result<Vec<String>, String> {
+    pub async fn get_dependencies(&self, package: &str) -> Result<Vec<String>, String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["deps", "--installed", package])
             .output()
-            .map_err(|e| format!("Failed to run brew deps: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to run brew deps: {}", e)),
+        };
 
         if !output.status.success() {
             return Err("brew deps command failed".to_string());
@@ -108,15 +120,19 @@ impl HomebrewProvider {
         Ok(stdout.lines().map(|s| s.to_string()).collect())
     }
 
-    pub fn list_services(&self) -> Result<Vec<HomebrewService>, String> {
+    pub async fn list_services(&self) -> Result<Vec<HomebrewService>, String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["services", "list"])
             .output()
-            .map_err(|e| format!("Failed to run brew services: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to run brew services: {}", e)),
+        };
 
         if !output.status.success() {
             return Err("brew services command failed".to_string());
@@ -142,15 +158,19 @@ impl HomebrewProvider {
         Ok(services)
     }
 
-    pub fn start_service(&self, service: &str) -> Result<(), String> {
+    pub async fn start_service(&self, service: &str) -> Result<(), String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["services", "start", service])
             .output()
-            .map_err(|e| format!("Failed to start service: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to start service: {}", e)),
+        };
 
         if !output.status.success() {
             return Err(format!("Failed to start service: {}", service));
@@ -159,15 +179,19 @@ impl HomebrewProvider {
         Ok(())
     }
 
-    pub fn stop_service(&self, service: &str) -> Result<(), String> {
+    pub async fn stop_service(&self, service: &str) -> Result<(), String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["services", "stop", service])
             .output()
-            .map_err(|e| format!("Failed to stop service: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to stop service: {}", e)),
+        };
 
         if !output.status.success() {
             return Err(format!("Failed to stop service: {}", service));
@@ -176,15 +200,19 @@ impl HomebrewProvider {
         Ok(())
     }
 
-    pub fn get_cache_size(&self) -> Result<u64, String> {
+    pub async fn get_cache_size(&self) -> Result<u64, String> {
         if !Self::is_available() {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = Command::new("brew")
+        let output = match Command::new("brew")
             .args(&["--cache"])
             .output()
-            .map_err(|e| format!("Failed to get cache path: {}", e))?;
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return Err(format!("Failed to get cache path: {}", e)),
+        };
 
         if !output.status.success() {
             return Err("Failed to get cache path".to_string());

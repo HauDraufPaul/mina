@@ -91,63 +91,136 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Initialize database
-            let db = Database::new(app.handle())
-                .map_err(|e| {
-                    eprintln!("Failed to initialize database: {}", e);
-                    e
-                })?;
+            eprintln!("MINA: Starting setup...");
+            
+            // Initialize database first
+            let db = match Database::new(app.handle()) {
+                Ok(db) => {
+                    eprintln!("MINA: Database initialized successfully");
+                    db
+                }
+                Err(e) => {
+                    eprintln!("ERROR: Failed to initialize database: {}", e);
+                    return Err(e.into());
+                }
+            };
             
             // Initialize all store schemas by creating instances
             // This ensures all tables are created
+            eprintln!("MINA: Initializing stores...");
+            
+            eprintln!("MINA: Initializing RateLimitStore...");
             let _ = RateLimitStore::new(db.conn.clone());
+            eprintln!("MINA: RateLimitStore initialized");
+            
+            eprintln!("MINA: Initializing TestingStore...");
             let _ = TestingStore::new(db.conn.clone());
+            eprintln!("MINA: TestingStore initialized");
+            
+            eprintln!("MINA: Initializing AnalyticsStore...");
             let _ = AnalyticsStore::new(db.conn.clone());
+            eprintln!("MINA: AnalyticsStore initialized");
+            
+            eprintln!("MINA: Initializing VectorStore...");
             let _ = VectorStore::new(db.conn.clone());
-            let _ = AIStore::new(db.conn.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to initialize AIStore: {}", e))?;
-            let _ = AutomationStore::new(db.conn.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to initialize AutomationStore: {}", e))?;
+            eprintln!("MINA: VectorStore initialized");
+            
+            eprintln!("MINA: Initializing AIStore...");
+            if let Err(e) = AIStore::new(db.conn.clone()) {
+                eprintln!("WARNING: Failed to initialize AIStore: {}", e);
+            } else {
+                eprintln!("MINA: AIStore initialized");
+            }
+            
+            eprintln!("MINA: Initializing AutomationStore...");
+            if let Err(e) = AutomationStore::new(db.conn.clone()) {
+                eprintln!("WARNING: Failed to initialize AutomationStore: {}", e);
+            } else {
+                eprintln!("MINA: AutomationStore initialized");
+            }
+            
+            eprintln!("MINA: Initializing DevOpsStore...");
             let _ = DevOpsStore::new(db.conn.clone());
+            eprintln!("MINA: DevOpsStore initialized");
+            
+            eprintln!("MINA: Initializing OSINTStore...");
+            // Initialize OSINTStore - this will create default feeds if needed
+            // Now safe - won't panic on errors
             let _ = OSINTStore::new(db.conn.clone());
+            eprintln!("MINA: OSINTStore initialized");
+            
+            eprintln!("MINA: Initializing ProjectStore...");
             let _ = ProjectStore::new(db.conn.clone());
+            eprintln!("MINA: ProjectStore initialized");
+            
+            eprintln!("MINA: Initializing MigrationTracker...");
             let _ = MigrationTracker::new(db.conn.clone());
+            eprintln!("MINA: MigrationTracker initialized");
             
             // Seed initial data
             if let Err(e) = storage::seed_data::seed_initial_data(&db.conn) {
                 eprintln!("Warning: Failed to seed initial data: {}", e);
             }
             
+            eprintln!("MINA: Stores initialized");
+            
             app.manage(Mutex::new(db));
             
             // Initialize providers
-            app.manage(Mutex::new(SystemProvider::new()));
-            app.manage(Mutex::new(NetworkProvider::new()));
-            app.manage(Mutex::new(ProcessProvider::new()));
-            app.manage(Mutex::new(HomebrewProvider::new()));
-            app.manage(Mutex::new(SystemUtilsProvider::new()));
+            app.manage(std::sync::Mutex::new(SystemProvider::new()));
+            app.manage(std::sync::Mutex::new(NetworkProvider::new()));
+            app.manage(std::sync::Mutex::new(ProcessProvider::new()));
+            app.manage(tokio::sync::Mutex::new(HomebrewProvider::new()));
+            app.manage(std::sync::Mutex::new(SystemUtilsProvider::new()));
             
             // Initialize Ollama provider
-            let app_data_dir = app.path().app_data_dir()
-                .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?;
-            let models_folder = app_data_dir.join("models");
-            std::fs::create_dir_all(&models_folder)
-                .map_err(|e| anyhow::anyhow!("Failed to create models folder: {}", e))?;
-            
-            let ollama_provider = OllamaProvider::new(models_folder);
-            let ollama_state = Arc::new(RwLock::new(ollama_provider));
-            
-            // Note: Folder watcher can be started later via a command if needed
-            // Starting it here causes runtime issues since setup() runs before the async runtime is ready
-            
-            app.manage(ollama_state);
+            eprintln!("MINA: Initializing Ollama provider...");
+            if let Ok(app_data_dir) = app.path().app_data_dir() {
+                let models_folder = app_data_dir.join("models");
+                if let Err(e) = std::fs::create_dir_all(&models_folder) {
+                    eprintln!("WARNING: Failed to create models folder: {}", e);
+                } else {
+                    let ollama_provider = OllamaProvider::new(models_folder);
+                    let ollama_state = Arc::new(RwLock::new(ollama_provider));
+                    app.manage(ollama_state);
+                }
+            } else {
+                eprintln!("WARNING: Failed to get app data dir for Ollama");
+            }
             
             // Initialize WebSocket server
+            eprintln!("MINA: Initializing WebSocket server...");
             let ws_server = WsServer::new();
             ws_server.start_broadcast(app.handle().clone());
             app.manage(Mutex::new(ws_server));
             
+            eprintln!("MINA: Setup complete, showing window...");
+            
+            // Ensure window is visible and focused after all initialization
+            if let Some(window) = app.get_webview_window("main") {
+                eprintln!("MINA: Main window found, showing...");
+                if let Err(e) = window.show() {
+                    eprintln!("ERROR: Failed to show window: {:?}", e);
+                }
+                if let Err(e) = window.set_focus() {
+                    eprintln!("WARNING: Failed to focus window: {:?}", e);
+                }
+                if let Err(e) = window.center() {
+                    eprintln!("WARNING: Failed to center window: {:?}", e);
+                }
+                eprintln!("MINA: Window should now be visible");
+            } else {
+                eprintln!("ERROR: Main window not found after setup!");
+                eprintln!("MINA: Available windows: {:?}", app.webview_windows().keys().collect::<Vec<_>>());
+            }
+            
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Handle window events
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Allow window to close
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::system::get_system_metrics,
@@ -218,6 +291,8 @@ pub fn run() {
             commands::devops::get_prometheus_metrics,
             commands::osint::create_rss_feed,
             commands::osint::list_rss_feeds,
+            commands::osint::update_rss_feed,
+            commands::osint::delete_rss_feed,
             commands::osint::save_rss_item,
             commands::osint::get_recent_rss_items,
             commands::osint::create_entity,

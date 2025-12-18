@@ -7,12 +7,39 @@ use tauri::State;
 pub fn create_rss_feed(
     url: String,
     name: String,
+    reliability: Option<f64>,
     db: State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = OSINTStore::new(db_guard.conn.clone());
-    store.create_feed(&url, &name)
+    store.create_feed(&url, &name, reliability)
         .map_err(|e| format!("Failed to create feed: {}", e))
+}
+
+#[tauri::command]
+pub fn update_rss_feed(
+    id: i64,
+    name: Option<String>,
+    url: Option<String>,
+    reliability: Option<f64>,
+    enabled: Option<bool>,
+    db: State<'_, Mutex<Database>>,
+) -> Result<(), String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = OSINTStore::new(db_guard.conn.clone());
+    store.update_feed(id, name.as_deref(), url.as_deref(), reliability, enabled)
+        .map_err(|e| format!("Failed to update feed: {}", e))
+}
+
+#[tauri::command]
+pub fn delete_rss_feed(
+    id: i64,
+    db: State<'_, Mutex<Database>>,
+) -> Result<(), String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = OSINTStore::new(db_guard.conn.clone());
+    store.delete_feed(id)
+        .map_err(|e| format!("Failed to delete feed: {}", e))
 }
 
 #[tauri::command]

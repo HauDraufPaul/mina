@@ -9,6 +9,7 @@ pub struct RSSFeed {
     pub url: String,
     pub name: String,
     pub enabled: bool,
+    pub reliability: f64,
     pub last_fetch: Option<i64>,
     pub created_at: i64,
 }
@@ -50,7 +51,11 @@ pub struct OSINTStore {
 impl OSINTStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = OSINTStore { conn };
-        store.init_schema().unwrap();
+        // Don't panic on schema initialization errors - log and continue
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: OSINTStore schema initialization failed: {}", e);
+            eprintln!("WARNING: Continuing anyway - store may not function correctly");
+        }
         store
     }
 
@@ -63,11 +68,20 @@ impl OSINTStore {
                 url TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 1,
+                reliability REAL NOT NULL DEFAULT 0.5,
                 last_fetch INTEGER,
                 created_at INTEGER NOT NULL
             )",
             [],
         )?;
+
+        // Migrate existing tables to add reliability column if it doesn't exist
+        // Ignore errors - column might already exist or table might be new
+        // This is safe because CREATE TABLE already includes the column
+        drop(conn.execute(
+            "ALTER TABLE rss_feeds ADD COLUMN reliability REAL NOT NULL DEFAULT 0.5",
+            [],
+        ));
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS rss_items (
@@ -123,17 +137,64 @@ impl OSINTStore {
             [],
         )?;
 
+        // Don't initialize default feeds here - do it lazily on first access
+        // This prevents hanging during app startup
+        // Default feeds will be added when the first feed list is requested
+
         Ok(())
     }
 
-    pub fn create_feed(&self, url: &str, name: &str) -> Result<i64> {
+    fn init_default_feeds(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // Check if any feeds exist (ignore errors if table doesn't exist yet)
+        let count: i64 = match conn.query_row(
+            "SELECT COUNT(*) FROM rss_feeds",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(c) => c,
+            Err(_) => return Ok(()), // Table doesn't exist yet, skip initialization
+        };
+
+        // Only add defaults if no feeds exist
+        if count == 0 {
+            eprintln!("MINA: Adding default RSS feeds...");
+            let default_feeds = vec![
+                ("Hacker News", "https://hnrss.org/frontpage", 0.9),
+                ("The Hacker News", "https://feeds.feedburner.com/TheHackersNews", 0.85),
+                ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", 0.95),
+                ("TechCrunch", "https://techcrunch.com/feed/", 0.9),
+                ("Wired", "https://www.wired.com/feed/rss", 0.85),
+            ];
+
+            let now = chrono::Utc::now().timestamp();
+            for (name, url, reliability) in default_feeds {
+                if let Err(e) = conn.execute(
+                    "INSERT OR IGNORE INTO rss_feeds (url, name, enabled, reliability, created_at)
+                     VALUES (?1, ?2, 1, ?3, ?4)",
+                    params![url, name, reliability, now],
+                ) {
+                    eprintln!("Warning: Failed to insert default feed {}: {}", name, e);
+                } else {
+                    eprintln!("MINA: Added default feed: {}", name);
+                }
+            }
+            eprintln!("MINA: Default feeds initialization complete");
+        }
+
+        Ok(())
+    }
+
+    pub fn create_feed(&self, url: &str, name: &str, reliability: Option<f64>) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().timestamp();
+        let rel = reliability.unwrap_or(0.5);
 
         conn.execute(
-            "INSERT OR IGNORE INTO rss_feeds (url, name, enabled, created_at)
-             VALUES (?1, ?2, 1, ?3)",
-            params![url, name, now],
+            "INSERT OR IGNORE INTO rss_feeds (url, name, enabled, reliability, created_at)
+             VALUES (?1, ?2, 1, ?3, ?4)",
+            params![url, name, rel, now],
         )?;
 
         // Get the ID
@@ -146,10 +207,38 @@ impl OSINTStore {
         Ok(id)
     }
 
+    pub fn update_feed(&self, id: i64, name: Option<&str>, url: Option<&str>, reliability: Option<f64>, enabled: Option<bool>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        if let Some(n) = name {
+            conn.execute("UPDATE rss_feeds SET name = ?1 WHERE id = ?2", params![n, id])?;
+        }
+        if let Some(u) = url {
+            conn.execute("UPDATE rss_feeds SET url = ?1 WHERE id = ?2", params![u, id])?;
+        }
+        if let Some(r) = reliability {
+            conn.execute("UPDATE rss_feeds SET reliability = ?1 WHERE id = ?2", params![r, id])?;
+        }
+        if let Some(e) = enabled {
+            conn.execute("UPDATE rss_feeds SET enabled = ?1 WHERE id = ?2", params![if e { 1i64 } else { 0i64 }, id])?;
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_feed(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM rss_feeds WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     pub fn list_feeds(&self) -> Result<Vec<RSSFeed>> {
+        // Initialize default feeds lazily on first access
+        let _ = self.init_default_feeds();
+        
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, url, name, enabled, last_fetch, created_at FROM rss_feeds ORDER BY name"
+            "SELECT id, url, name, enabled, reliability, last_fetch, created_at FROM rss_feeds ORDER BY reliability DESC, name"
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -158,8 +247,9 @@ impl OSINTStore {
                 url: row.get(1)?,
                 name: row.get(2)?,
                 enabled: row.get::<_, i64>(3)? == 1,
-                last_fetch: row.get(4)?,
-                created_at: row.get(5)?,
+                reliability: row.get(4)?,
+                last_fetch: row.get(5)?,
+                created_at: row.get(6)?,
             })
         })?;
 
@@ -199,10 +289,13 @@ impl OSINTStore {
 
     pub fn get_recent_items(&self, limit: i32) -> Result<Vec<RSSItem>> {
         let conn = self.conn.lock().unwrap();
+        // Get items ordered by feed reliability and recency
         let mut stmt = conn.prepare(
-            "SELECT id, feed_id, title, content, url, published_at, fetched_at
-             FROM rss_items
-             ORDER BY published_at DESC
+            "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at
+             FROM rss_items i
+             JOIN rss_feeds f ON i.feed_id = f.id
+             WHERE f.enabled = 1
+             ORDER BY f.reliability DESC, i.published_at DESC
              LIMIT ?1"
         )?;
 
