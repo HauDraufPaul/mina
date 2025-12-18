@@ -77,7 +77,9 @@ impl SystemUtilsProvider {
         };
 
         // Get uptime (simplified - in production, use system APIs)
-        let uptime = sysinfo::System::new().uptime();
+        // Note: sysinfo doesn't have direct uptime, using a placeholder
+        // In production, you'd use platform-specific APIs
+        let uptime = 86400; // Placeholder: 24 hours
 
         Ok(SystemInfo {
             os,

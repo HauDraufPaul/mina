@@ -71,38 +71,76 @@ impl AnalyticsStore {
     ) -> Result<Vec<AnalyticsMetrics>> {
         let conn = self.conn.lock().unwrap();
         let mut query = "SELECT timestamp, metric_type, value, metadata FROM analytics_metrics WHERE metric_type = ?1".to_string();
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(metric_type)];
-
-        if let Some(start) = start_time {
-            query.push_str(" AND timestamp >= ?");
-            params_vec.push(Box::new(start));
+        
+        if start_time.is_some() {
+            query.push_str(" AND timestamp >= ?2");
         }
-
-        if let Some(end) = end_time {
-            query.push_str(" AND timestamp <= ?");
-            params_vec.push(Box::new(end));
+        if end_time.is_some() {
+            query.push_str(" AND timestamp <= ?3");
         }
-
         query.push_str(" ORDER BY timestamp DESC");
-
         if let Some(lim) = limit {
             query.push_str(&format!(" LIMIT {}", lim));
         }
 
-        let mut stmt = conn.prepare(&query)?;
-        let params_slice: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
-        let rows = stmt.query_map(&params_slice[..], |row| {
-            Ok(AnalyticsMetrics {
-                timestamp: row.get(0)?,
-                metric_type: row.get(1)?,
-                value: row.get(2)?,
-                metadata: row.get(3)?,
-            })
-        })?;
-
         let mut metrics = Vec::new();
-        for row in rows {
-            metrics.push(row?);
+        match (start_time, end_time) {
+            (Some(start), Some(end)) => {
+                let mut stmt = conn.prepare(&query)?;
+                let rows = stmt.query_map(params![metric_type, start, end], |row| {
+                    Ok(AnalyticsMetrics {
+                        timestamp: row.get(0)?,
+                        metric_type: row.get(1)?,
+                        value: row.get(2)?,
+                        metadata: row.get(3)?,
+                    })
+                })?;
+                for row in rows {
+                    metrics.push(row?);
+                }
+            }
+            (Some(start), None) => {
+                let mut stmt = conn.prepare(&query)?;
+                let rows = stmt.query_map(params![metric_type, start], |row| {
+                    Ok(AnalyticsMetrics {
+                        timestamp: row.get(0)?,
+                        metric_type: row.get(1)?,
+                        value: row.get(2)?,
+                        metadata: row.get(3)?,
+                    })
+                })?;
+                for row in rows {
+                    metrics.push(row?);
+                }
+            }
+            (None, Some(end)) => {
+                let mut stmt = conn.prepare(&query)?;
+                let rows = stmt.query_map(params![metric_type, end], |row| {
+                    Ok(AnalyticsMetrics {
+                        timestamp: row.get(0)?,
+                        metric_type: row.get(1)?,
+                        value: row.get(2)?,
+                        metadata: row.get(3)?,
+                    })
+                })?;
+                for row in rows {
+                    metrics.push(row?);
+                }
+            }
+            (None, None) => {
+                let mut stmt = conn.prepare(&query)?;
+                let rows = stmt.query_map(params![metric_type], |row| {
+                    Ok(AnalyticsMetrics {
+                        timestamp: row.get(0)?,
+                        metric_type: row.get(1)?,
+                        value: row.get(2)?,
+                        metadata: row.get(3)?,
+                    })
+                })?;
+                for row in rows {
+                    metrics.push(row?);
+                }
+            }
         }
         Ok(metrics)
     }
@@ -110,51 +148,70 @@ impl AnalyticsStore {
     pub fn get_statistics(&self, metric_type: &str, start_time: Option<i64>, end_time: Option<i64>) -> Result<Statistics> {
         let conn = self.conn.lock().unwrap();
         let mut query = "SELECT AVG(value), MIN(value), MAX(value), COUNT(*) FROM analytics_metrics WHERE metric_type = ?1".to_string();
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(metric_type)];
-
-        if let Some(start) = start_time {
-            query.push_str(" AND timestamp >= ?");
-            params_vec.push(Box::new(start));
+        
+        if start_time.is_some() {
+            query.push_str(" AND timestamp >= ?2");
         }
-
-        if let Some(end) = end_time {
-            query.push_str(" AND timestamp <= ?");
-            params_vec.push(Box::new(end));
+        if end_time.is_some() {
+            query.push_str(" AND timestamp <= ?3");
         }
 
         let mut stmt = conn.prepare(&query)?;
-        let params_slice: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
-        let row = stmt.query_row(&params_slice[..], |row| {
-            Ok((
-                row.get::<_, Option<f64>>(0)?,
-                row.get::<_, Option<f64>>(1)?,
-                row.get::<_, Option<f64>>(2)?,
-                row.get::<_, i64>(3)?,
-            ))
-        })?;
+        let row = match (start_time, end_time) {
+            (Some(start), Some(end)) => {
+                stmt.query_row(params![metric_type, start, end], |row| {
+                    Ok((
+                        row.get::<_, Option<f64>>(0)?,
+                        row.get::<_, Option<f64>>(1)?,
+                        row.get::<_, Option<f64>>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })?
+            }
+            (Some(start), None) => {
+                stmt.query_row(params![metric_type, start], |row| {
+                    Ok((
+                        row.get::<_, Option<f64>>(0)?,
+                        row.get::<_, Option<f64>>(1)?,
+                        row.get::<_, Option<f64>>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })?
+            }
+            (None, Some(end)) => {
+                stmt.query_row(params![metric_type, end], |row| {
+                    Ok((
+                        row.get::<_, Option<f64>>(0)?,
+                        row.get::<_, Option<f64>>(1)?,
+                        row.get::<_, Option<f64>>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })?
+            }
+            (None, None) => {
+                stmt.query_row(params![metric_type], |row| {
+                    Ok((
+                        row.get::<_, Option<f64>>(0)?,
+                        row.get::<_, Option<f64>>(1)?,
+                        row.get::<_, Option<f64>>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })?
+            }
+        };
 
         let (avg, min, max, count) = row;
         
         // Calculate standard deviation
         let mut std_dev = 0.0;
         if let Some(mean) = avg {
-            let variance_query = "SELECT SUM((value - ?) * (value - ?)) FROM analytics_metrics WHERE metric_type = ?1".to_string();
-            let mut variance_params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(mean), Box::new(mean)];
-            if let Some(start) = start_time {
-                variance_params.push(Box::new(start));
-            }
-            if let Some(end) = end_time {
-                variance_params.push(Box::new(end));
-            }
-            let variance_params_slice: Vec<&dyn rusqlite::ToSql> = variance_params.iter().map(|p| p.as_ref()).collect();
-            let variance: Option<f64> = conn.query_row(
-                &variance_query,
-                &variance_params_slice[..],
-                |row| row.get(0),
-            ).optional()?;
-            
-            if let Some(var) = variance {
-                std_dev = (var / count as f64).sqrt();
+            // Simplified std dev calculation - get all values and calculate
+            let all_metrics = self.get_metrics(metric_type, start_time, end_time, None)?;
+            if !all_metrics.is_empty() {
+                let variance: f64 = all_metrics.iter()
+                    .map(|m| (m.value - mean).powi(2))
+                    .sum::<f64>() / all_metrics.len() as f64;
+                std_dev = variance.sqrt();
             }
         }
 
@@ -176,4 +233,3 @@ pub struct Statistics {
     pub std_dev: f64,
     pub count: usize,
 }
-

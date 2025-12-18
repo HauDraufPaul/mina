@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -86,45 +86,42 @@ impl ProjectStore {
 
     pub fn list_projects(&self, project_type: Option<&str>) -> Result<Vec<Project>> {
         let conn = self.conn.lock().unwrap();
-        let query = if project_type.is_some() {
-            "SELECT id, name, project_type, content, created_at, updated_at FROM projects WHERE project_type = ?1 ORDER BY updated_at DESC"
-        } else {
-            "SELECT id, name, project_type, content, created_at, updated_at FROM projects ORDER BY updated_at DESC"
-        };
-
-        let mut stmt = if project_type.is_some() {
-            conn.prepare(query)?
-        } else {
-            conn.prepare(query)?
-        };
-
-        let rows = if let Some(pt) = project_type {
-            stmt.query_map(params![pt], |row| {
-                Ok(Project {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    project_type: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
-                })
-            })?
-        } else {
-            stmt.query_map([], |row| {
-                Ok(Project {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    project_type: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
-                })
-            })?
-        };
-
         let mut projects = Vec::new();
-        for row in rows {
-            projects.push(row?);
+        
+        if let Some(pt) = project_type {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, project_type, content, created_at, updated_at FROM projects WHERE project_type = ?1 ORDER BY updated_at DESC"
+            )?;
+            let rows = stmt.query_map(params![pt], |row| {
+                Ok(Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    project_type: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                })
+            })?;
+            for row in rows {
+                projects.push(row?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, project_type, content, created_at, updated_at FROM projects ORDER BY updated_at DESC"
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Project {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    project_type: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                })
+            })?;
+            for row in rows {
+                projects.push(row?);
+            }
         }
         Ok(projects)
     }

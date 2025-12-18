@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { GitBranch, CheckCircle, Clock, AlertTriangle } from "lucide-react";
@@ -7,46 +8,39 @@ interface Migration {
   version: number;
   name: string;
   applied_at: number;
-  status: "applied" | "pending" | "failed";
+  status: string;
 }
 
 export default function MigrationManager() {
   const [migrations, setMigrations] = useState<Migration[]>([]);
+  const [latestVersion, setLatestVersion] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate migration data
-    const mockMigrations: Migration[] = [
-      {
-        version: 1,
-        name: "initial_schema",
-        applied_at: Date.now() - 86400000,
-        status: "applied",
-      },
-      {
-        version: 2,
-        name: "add_error_tracking",
-        applied_at: Date.now() - 43200000,
-        status: "applied",
-      },
-      {
-        version: 3,
-        name: "add_config_table",
-        applied_at: Date.now() - 21600000,
-        status: "applied",
-      },
-    ];
-
-    setMigrations(mockMigrations);
-    setLoading(false);
+    loadMigrations();
   }, []);
 
+  const loadMigrations = async () => {
+    try {
+      const [migrationsData, version] = await Promise.all([
+        invoke<Migration[]>("list_migrations"),
+        invoke<number>("get_latest_migration_version"),
+      ]);
+      setMigrations(migrationsData);
+      setLatestVersion(version);
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to load migrations:", error);
+      setLoading(false);
+    }
+  };
+
   const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    return new Date(timestamp * 1000).toLocaleString();
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "applied":
         return <CheckCircle className="w-5 h-5 text-neon-green" />;
       case "pending":
@@ -77,60 +71,67 @@ export default function MigrationManager() {
         </Card>
         <Card title="Applied" subtitle="Successfully applied">
           <div className="text-3xl font-bold text-neon-green">
-            {migrations.filter((m) => m.status === "applied").length}
+            {migrations.filter((m) => m.status.toLowerCase() === "applied").length}
           </div>
         </Card>
         <Card title="Pending" subtitle="Awaiting application">
           <div className="text-3xl font-bold text-neon-amber">
-            {migrations.filter((m) => m.status === "pending").length}
+            {migrations.filter((m) => m.status.toLowerCase() === "pending").length}
           </div>
         </Card>
       </div>
 
       <Card title="Migration History">
         <div className="space-y-3">
-          {migrations.map((migration) => (
-            <div
-              key={migration.version}
-              className="glass-card p-4 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4 flex-1">
-                {getStatusIcon(migration.status)}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-sm text-neon-cyan">
-                      v{migration.version}
-                    </span>
-                    <span className="font-semibold">{migration.name}</span>
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Applied: {formatTimestamp(migration.applied_at)}
+          {migrations.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">
+              <GitBranch className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+              <p>No migrations found</p>
+            </div>
+          ) : (
+            migrations.map((migration) => (
+              <div
+                key={migration.version}
+                className="glass-card p-4 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4 flex-1">
+                  {getStatusIcon(migration.status)}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-sm text-neon-cyan">
+                        v{migration.version}
+                      </span>
+                      <span className="font-semibold">{migration.name}</span>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Applied: {formatTimestamp(migration.applied_at)}
+                    </div>
                   </div>
                 </div>
+                <div className="ml-4">
+                  <span
+                    className={`text-xs px-2 py-1 rounded ${
+                      migration.status.toLowerCase() === "applied"
+                        ? "bg-neon-green/20 text-neon-green"
+                        : migration.status.toLowerCase() === "pending"
+                        ? "bg-neon-amber/20 text-neon-amber"
+                        : "bg-neon-red/20 text-neon-red"
+                    }`}
+                  >
+                    {migration.status.toUpperCase()}
+                  </span>
+                </div>
               </div>
-              <div className="ml-4">
-                <span
-                  className={`text-xs px-2 py-1 rounded ${
-                    migration.status === "applied"
-                      ? "bg-neon-green/20 text-neon-green"
-                      : migration.status === "pending"
-                      ? "bg-neon-amber/20 text-neon-amber"
-                      : "bg-neon-red/20 text-neon-red"
-                  }`}
-                >
-                  {migration.status.toUpperCase()}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Card>
 
       <Card title="Migration Actions">
         <div className="space-y-3">
-          <Button variant="primary" className="w-full">
+          <Button variant="primary" className="w-full" onClick={loadMigrations}>
             <GitBranch className="w-4 h-4 mr-2" />
-            Run Pending Migrations
+            Refresh Migrations
           </Button>
           <Button variant="secondary" className="w-full">
             Validate Schema
@@ -145,11 +146,7 @@ export default function MigrationManager() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-400 mb-1">Schema Version</div>
-            <div className="font-mono text-sm">
-              {migrations.length > 0
-                ? migrations[migrations.length - 1].version
-                : "0"}
-            </div>
+            <div className="font-mono text-sm">{latestVersion}</div>
           </div>
           <div>
             <div className="text-sm text-gray-400 mb-1">Last Migration</div>

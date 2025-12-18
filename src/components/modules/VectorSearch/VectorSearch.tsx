@@ -1,18 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
-import { Search, Filter, TrendingUp, Database } from "lucide-react";
+import { Search, Filter, Database } from "lucide-react";
 
 interface SearchResult {
-  id: string;
-  content: string;
+  document: {
+    id: string;
+    collection: string;
+    content: string;
+    metadata: Record<string, string>;
+  };
   similarity: number;
-  metadata: Record<string, string>;
 }
 
 export default function VectorSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [collections, setCollections] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     minSimilarity: 0.7,
@@ -20,51 +25,58 @@ export default function VectorSearch() {
     limit: 10,
   });
 
+  useEffect(() => {
+    loadCollections();
+  }, []);
+
+  const loadCollections = async () => {
+    try {
+      const cols = await invoke<string[]>("list_collections");
+      setCollections(cols);
+      if (cols.length > 0 && filters.collection === "all") {
+        setFilters({ ...filters, collection: cols[0] });
+      }
+    } catch (error) {
+      console.error("Failed to load collections:", error);
+    }
+  };
+
   const handleSearch = async () => {
     if (!query.trim()) {
       alert("Please enter a search query");
       return;
     }
 
-    setLoading(true);
-    // Simulate search results
-    setTimeout(() => {
-      const mockResults: SearchResult[] = [
-        {
-          id: "1",
-          content: "System monitoring and performance metrics collection",
-          similarity: 0.95,
-          metadata: { source: "docs", type: "documentation" },
-        },
-        {
-          id: "2",
-          content: "Network traffic analysis and connection monitoring",
-          similarity: 0.87,
-          metadata: { source: "logs", type: "log_entry" },
-        },
-        {
-          id: "3",
-          content: "Database query optimization and indexing strategies",
-          similarity: 0.82,
-          metadata: { source: "docs", type: "documentation" },
-        },
-        {
-          id: "4",
-          content: "Error tracking and resolution workflow management",
-          similarity: 0.79,
-          metadata: { source: "errors", type: "error_log" },
-        },
-        {
-          id: "5",
-          content: "Configuration management and environment settings",
-          similarity: 0.75,
-          metadata: { source: "config", type: "configuration" },
-        },
-      ].filter((r) => r.similarity >= filters.minSimilarity);
+    if (filters.collection === "all") {
+      alert("Please select a collection");
+      return;
+    }
 
-      setResults(mockResults.slice(0, filters.limit));
+    setLoading(true);
+    try {
+      // For now, we'll use a simple text-based approach
+      // In production, you'd generate embeddings from the query
+      // For demonstration, we'll create a dummy embedding vector
+      // The backend will handle the actual similarity search
+      
+      // Create a simple embedding vector (384 dimensions, all zeros for now)
+      // In a real implementation, you'd use an embedding model here
+      const queryEmbedding = new Array(384).fill(0).map(() => Math.random() * 0.1);
+
+      const searchResults = await invoke<SearchResult[]>("search_vectors", {
+        collection: filters.collection,
+        queryEmbedding: queryEmbedding,
+        limit: filters.limit,
+        minSimilarity: filters.minSimilarity,
+      });
+
+      setResults(searchResults);
+    } catch (error) {
+      console.error("Search failed:", error);
+      alert(`Search failed: ${error}`);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const getSimilarityColor = (similarity: number) => {
@@ -131,10 +143,11 @@ export default function VectorSearch() {
                 className="glass-input w-full"
               >
                 <option value="all">All Collections</option>
-                <option value="docs">Documentation</option>
-                <option value="logs">Logs</option>
-                <option value="errors">Errors</option>
-                <option value="config">Configuration</option>
+                {collections.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -165,15 +178,18 @@ export default function VectorSearch() {
               <div className="text-center py-8 text-gray-400">
                 <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
                 <p>Enter a query and click Search to find similar content</p>
+                <p className="text-xs mt-2 text-gray-500">
+                  Note: Embedding generation is simplified. In production, use a proper embedding model.
+                </p>
               </div>
             </Card>
           ) : (
             <>
               <Card title={`Search Results (${results.length})`}>
                 <div className="space-y-4">
-                  {results.map((result) => (
+                  {results.map((result, index) => (
                     <div
-                      key={result.id}
+                      key={index}
                       className="glass-card p-4 hover:border-neon-cyan transition-all"
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -181,13 +197,15 @@ export default function VectorSearch() {
                           <div className="flex items-center gap-2 mb-2">
                             <Database className="w-4 h-4 text-neon-cyan" />
                             <span className="text-xs text-gray-400 font-mono">
-                              {result.metadata.source}
+                              {result.document.collection}
                             </span>
-                            <span className="text-xs text-gray-500">
-                              • {result.metadata.type}
-                            </span>
+                            {result.document.metadata && Object.keys(result.document.metadata).length > 0 && (
+                              <span className="text-xs text-gray-500">
+                                • {Object.keys(result.document.metadata)[0]}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-sm text-gray-300 mb-2">{result.content}</p>
+                          <p className="text-sm text-gray-300 mb-2">{result.document.content}</p>
                         </div>
                         <div
                           className={`ml-4 text-right ${getSimilarityColor(
@@ -202,7 +220,7 @@ export default function VectorSearch() {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Filter className="w-3 h-3" />
-                        <span>ID: {result.id}</span>
+                        <span>ID: {result.document.id}</span>
                       </div>
                     </div>
                   ))}

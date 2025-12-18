@@ -1,14 +1,74 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { HardDrive, Power, Settings, Activity } from "lucide-react";
 
+interface DiskInfo {
+  total: number;
+  used: number;
+  free: number;
+  usage_percent: number;
+}
+
+interface SystemInfo {
+  os: string;
+  architecture: string;
+  kernel: string;
+  uptime: number;
+}
+
 export default function SystemUtilities() {
-  const [diskInfo, setDiskInfo] = useState({
-    total: 0,
-    used: 0,
-    free: 0,
-  });
+  const [diskInfo, setDiskInfo] = useState<DiskInfo | null>(null);
+  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [disk, system] = await Promise.all([
+        invoke<DiskInfo>("get_disk_info"),
+        invoke<SystemInfo>("get_system_info"),
+      ]);
+      setDiskInfo(disk);
+      setSystemInfo(system);
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to load system data:", error);
+      setLoading(false);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  };
+
+  const formatUptime = (seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
+  const handlePreventSleep = async () => {
+    try {
+      await invoke("prevent_sleep");
+      alert("Sleep prevention activated");
+    } catch (error) {
+      alert(`Failed to prevent sleep: ${error}`);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -19,116 +79,155 @@ export default function SystemUtilities() {
         <p className="text-gray-400">System management and diagnostics</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card title="Disk Management" subtitle="Storage analysis and cleanup">
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <HardDrive className="w-12 h-12 text-neon-cyan" />
-              <div className="flex-1">
-                <div className="text-sm text-gray-400 mb-1">Total Space</div>
-                <div className="text-lg font-semibold">
-                  {(diskInfo.total / 1024 / 1024 / 1024).toFixed(2)} GB
+      {loading ? (
+        <div className="text-center">Loading system information...</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card title="Disk Management" subtitle="Storage analysis and cleanup">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <HardDrive className="w-12 h-12 text-neon-cyan" />
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-400 mb-1">Total Space</div>
+                    <div className="text-lg font-semibold">
+                      {diskInfo ? formatBytes(diskInfo.total) : "N/A"}
+                    </div>
+                  </div>
+                </div>
+                {diskInfo && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Used</span>
+                        <span>{formatBytes(diskInfo.used)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Free</span>
+                        <span>{formatBytes(diskInfo.free)}</span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          diskInfo.usage_percent > 90
+                            ? "bg-neon-red"
+                            : diskInfo.usage_percent > 70
+                            ? "bg-neon-amber"
+                            : "bg-neon-cyan"
+                        }`}
+                        style={{ width: `${diskInfo.usage_percent}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-400 text-center">
+                      {diskInfo.usage_percent.toFixed(1)}% used
+                    </div>
+                  </>
+                )}
+                <Button variant="secondary" className="w-full">
+                  Analyze Disk Usage
+                </Button>
+                <Button variant="secondary" className="w-full">
+                  Clean Cache
+                </Button>
+              </div>
+            </Card>
+
+            <Card title="Power Management" subtitle="System power controls">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Power className="w-12 h-12 text-neon-green" />
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-400 mb-1">Power Status</div>
+                    <div className="text-lg font-semibold text-neon-green">
+                      Active
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={handlePreventSleep}
+                  >
+                    Prevent Sleep
+                  </Button>
+                  <Button variant="secondary" className="w-full">
+                    Display Controls
+                  </Button>
                 </div>
               </div>
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-2">
-              <div
-                className="bg-neon-cyan h-2 rounded-full"
-                style={{
-                  width: `${diskInfo.total > 0 ? (diskInfo.used / diskInfo.total) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            <Button variant="secondary" className="w-full">
-              Analyze Disk Usage
-            </Button>
-            <Button variant="secondary" className="w-full">
-              Clean Cache
-            </Button>
-          </div>
-        </Card>
+            </Card>
 
-        <Card title="Power Management" subtitle="System power controls">
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Power className="w-12 h-12 text-neon-green" />
-              <div className="flex-1">
-                <div className="text-sm text-gray-400 mb-1">Power Status</div>
-                <div className="text-lg font-semibold text-neon-green">
-                  Active
+            <Card title="Service Control" subtitle="System service management">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Settings className="w-12 h-12 text-neon-amber" />
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-400 mb-1">Services</div>
+                    <div className="text-lg font-semibold">Manage Services</div>
+                  </div>
+                </div>
+                <Button variant="secondary" className="w-full">
+                  View Services
+                </Button>
+                <Button variant="secondary" className="w-full">
+                  Service Status
+                </Button>
+              </div>
+            </Card>
+
+            <Card title="Hardware Diagnostics" subtitle="System health checks">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Activity className="w-12 h-12 text-neon-red" />
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-400 mb-1">Health Status</div>
+                    <div className="text-lg font-semibold text-neon-green">
+                      Healthy
+                    </div>
+                  </div>
+                </div>
+                <Button variant="secondary" className="w-full">
+                  Run Diagnostics
+                </Button>
+                <Button variant="secondary" className="w-full">
+                  View Reports
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          <Card title="System Information">
+            {systemInfo ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-sm text-gray-400 mb-1">OS</div>
+                  <div className="font-mono text-sm">{systemInfo.os}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400 mb-1">Architecture</div>
+                  <div className="font-mono text-sm">{systemInfo.architecture}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400 mb-1">Kernel</div>
+                  <div className="font-mono text-sm">{systemInfo.kernel}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400 mb-1">Uptime</div>
+                  <div className="font-mono text-sm">
+                    {formatUptime(systemInfo.uptime)}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Button variant="secondary" className="w-full">
-                Prevent Sleep
-              </Button>
-              <Button variant="secondary" className="w-full">
-                Display Controls
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="Service Control" subtitle="System service management">
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Settings className="w-12 h-12 text-neon-amber" />
-              <div className="flex-1">
-                <div className="text-sm text-gray-400 mb-1">Services</div>
-                <div className="text-lg font-semibold">Manage Services</div>
+            ) : (
+              <div className="text-center text-gray-400 py-4">
+                System information not available
               </div>
-            </div>
-            <Button variant="secondary" className="w-full">
-              View Services
-            </Button>
-            <Button variant="secondary" className="w-full">
-              Service Status
-            </Button>
-          </div>
-        </Card>
-
-        <Card title="Hardware Diagnostics" subtitle="System health checks">
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Activity className="w-12 h-12 text-neon-red" />
-              <div className="flex-1">
-                <div className="text-sm text-gray-400 mb-1">Health Status</div>
-                <div className="text-lg font-semibold text-neon-green">
-                  Healthy
-                </div>
-              </div>
-            </div>
-            <Button variant="secondary" className="w-full">
-              Run Diagnostics
-            </Button>
-            <Button variant="secondary" className="w-full">
-              View Reports
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      <Card title="System Information">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <div className="text-sm text-gray-400 mb-1">OS</div>
-            <div className="font-mono text-sm">macOS</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-400 mb-1">Architecture</div>
-            <div className="font-mono text-sm">ARM64</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-400 mb-1">Kernel</div>
-            <div className="font-mono text-sm">Darwin</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-400 mb-1">Uptime</div>
-            <div className="font-mono text-sm">24h 15m</div>
-          </div>
-        </div>
-      </Card>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -1,18 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
-import { TestTube, Play, CheckCircle, XCircle, Clock, BarChart3 } from "lucide-react";
+import { TestTube, Play, CheckCircle, XCircle, Clock } from "lucide-react";
 
 interface TestResult {
+  id: number;
+  suite_id: number;
   name: string;
-  status: "passed" | "failed" | "running" | "pending";
+  status: string;
   duration?: number;
   error?: string;
+  executed_at: number;
 }
 
 interface TestSuite {
+  id: number;
   name: string;
-  tests: TestResult[];
+  test_type: string;
+  created_at: number;
+}
+
+interface TestSuiteStats {
   total: number;
   passed: number;
   failed: number;
@@ -21,67 +30,50 @@ interface TestSuite {
 
 export default function TestingCenter() {
   const [testSuites, setTestSuites] = useState<TestSuite[]>([]);
-  const [running, setRunning] = useState(false);
-  const [selectedSuite, setSelectedSuite] = useState<string | null>(null);
+  const [suiteResults, setSuiteResults] = useState<Record<number, TestResult[]>>({});
+  const [suiteStats, setSuiteStats] = useState<Record<number, TestSuiteStats>>({});
+  const [selectedSuite, setSelectedSuite] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const mockTestSuites: TestSuite[] = [
-    {
-      name: "Unit Tests",
-      total: 45,
-      passed: 42,
-      failed: 3,
-      duration: 2.3,
-      tests: [
-        { name: "SystemProvider::get_cpu_usage", status: "passed", duration: 0.05 },
-        { name: "Database::save_error", status: "passed", duration: 0.12 },
-        { name: "AuthManager::verify_pin", status: "passed", duration: 0.08 },
-        { name: "VectorStore::search_similar", status: "failed", duration: 0.15, error: "Assertion failed: similarity > 0.9" },
-        { name: "HomebrewProvider::list_installed", status: "passed", duration: 0.23 },
-      ],
-    },
-    {
-      name: "Integration Tests",
-      total: 12,
-      passed: 11,
-      failed: 1,
-      duration: 5.7,
-      tests: [
-        { name: "System metrics collection", status: "passed", duration: 1.2 },
-        { name: "Network interface monitoring", status: "passed", duration: 0.8 },
-        { name: "Process management", status: "passed", duration: 0.5 },
-        { name: "Database migrations", status: "failed", duration: 2.1, error: "Migration rollback failed" },
-      ],
-    },
-    {
-      name: "E2E Tests",
-      total: 8,
-      passed: 7,
-      failed: 1,
-      duration: 12.4,
-      tests: [
-        { name: "User login flow", status: "passed", duration: 3.2 },
-        { name: "System monitor display", status: "passed", duration: 2.8 },
-        { name: "Package installation", status: "passed", duration: 4.1 },
-        { name: "Vector search workflow", status: "failed", duration: 2.3, error: "Timeout waiting for results" },
-      ],
-    },
-  ];
+  useEffect(() => {
+    loadSuites();
+  }, []);
 
-  const handleRunTests = async (suiteName?: string) => {
-    setRunning(true);
-    // Simulate test execution
-    setTimeout(() => {
-      if (suiteName) {
-        setTestSuites(mockTestSuites.filter((s) => s.name === suiteName));
-      } else {
-        setTestSuites(mockTestSuites);
+  useEffect(() => {
+    if (selectedSuite !== null) {
+      loadSuiteData(selectedSuite);
+    }
+  }, [selectedSuite]);
+
+  const loadSuites = async () => {
+    try {
+      const suites = await invoke<TestSuite[]>("list_test_suites");
+      setTestSuites(suites);
+      if (suites.length > 0 && selectedSuite === null) {
+        setSelectedSuite(suites[0].id);
       }
-      setRunning(false);
-    }, 2000);
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to load test suites:", error);
+      setLoading(false);
+    }
+  };
+
+  const loadSuiteData = async (suiteId: number) => {
+    try {
+      const [results, stats] = await Promise.all([
+        invoke<TestResult[]>("get_suite_results", { suiteId }),
+        invoke<TestSuiteStats>("get_suite_stats", { suiteId }),
+      ]);
+      setSuiteResults({ ...suiteResults, [suiteId]: results });
+      setSuiteStats({ ...suiteStats, [suiteId]: stats });
+    } catch (error) {
+      console.error("Failed to load suite data:", error);
+    }
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "passed":
         return <CheckCircle className="w-4 h-4 text-neon-green" />;
       case "failed":
@@ -93,11 +85,19 @@ export default function TestingCenter() {
     }
   };
 
-  const totalTests = testSuites.reduce((sum, suite) => sum + suite.total, 0);
-  const totalPassed = testSuites.reduce((sum, suite) => sum + suite.passed, 0);
-  const totalFailed = testSuites.reduce((sum, suite) => sum + suite.failed, 0);
-  const totalDuration = testSuites.reduce((sum, suite) => sum + suite.duration, 0);
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp * 1000).toLocaleString();
+  };
+
+  const totalTests = Object.values(suiteStats).reduce((sum, stats) => sum + stats.total, 0);
+  const totalPassed = Object.values(suiteStats).reduce((sum, stats) => sum + stats.passed, 0);
+  const totalFailed = Object.values(suiteStats).reduce((sum, stats) => sum + stats.failed, 0);
+  const totalDuration = Object.values(suiteStats).reduce((sum, stats) => sum + stats.duration, 0);
   const coverage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
+
+  if (loading) {
+    return <div className="text-center">Loading test data...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -109,9 +109,9 @@ export default function TestingCenter() {
           <p className="text-gray-400">Test suite and coverage analytics</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => handleRunTests()} variant="primary" disabled={running}>
+          <Button onClick={loadSuites} variant="primary">
             <Play className="w-4 h-4 mr-2" />
-            Run All Tests
+            Refresh
           </Button>
         </div>
       </div>
@@ -132,81 +132,99 @@ export default function TestingCenter() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {testSuites.map((suite) => (
-          <Card key={suite.name} title={suite.name}>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <TestTube className="w-5 h-5 text-neon-cyan" />
-                  <span className="font-semibold">{suite.name}</span>
-                </div>
-                <div className="text-sm text-gray-400">
-                  {suite.duration.toFixed(2)}s
-                </div>
-              </div>
+        {testSuites.map((suite) => {
+          const results = suiteResults[suite.id] || [];
+          const stats = suiteStats[suite.id] || { total: 0, passed: 0, failed: 0, duration: 0 };
+          const isSelected = selectedSuite === suite.id;
 
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-neon-cyan">{suite.total}</div>
-                  <div className="text-xs text-gray-400">Total</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-neon-green">{suite.passed}</div>
-                  <div className="text-xs text-gray-400">Passed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-neon-red">{suite.failed}</div>
-                  <div className="text-xs text-gray-400">Failed</div>
-                </div>
-              </div>
-
-              <div className="w-full bg-gray-800 rounded-full h-2 mb-4">
-                <div
-                  className="bg-neon-green h-2 rounded-full transition-all"
-                  style={{ width: `${(suite.passed / suite.total) * 100}%` }}
-                />
-              </div>
-
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {suite.tests.map((test, index) => (
-                  <div
-                    key={index}
-                    className="glass-card p-2 flex items-center justify-between text-sm"
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {getStatusIcon(test.status)}
-                      <span className="truncate font-mono text-xs">{test.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      {test.duration && (
-                        <span className="text-xs text-gray-400">
-                          {test.duration.toFixed(2)}s
-                        </span>
-                      )}
-                    </div>
+          return (
+            <Card
+              key={suite.id}
+              title={suite.name}
+              className={isSelected ? "border-2 border-neon-cyan" : ""}
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <TestTube className="w-5 h-5 text-neon-cyan" />
+                    <span className="font-semibold">{suite.name}</span>
+                    <span className="text-xs text-gray-400">({suite.test_type})</span>
                   </div>
-                ))}
-              </div>
+                  <div className="text-sm text-gray-400">
+                    {stats.duration.toFixed(2)}s
+                  </div>
+                </div>
 
-              <Button
-                onClick={() => handleRunTests(suite.name)}
-                variant="secondary"
-                className="w-full"
-                disabled={running}
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Run {suite.name}
-              </Button>
-            </div>
-          </Card>
-        ))}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-neon-cyan">{stats.total}</div>
+                    <div className="text-xs text-gray-400">Total</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-neon-green">{stats.passed}</div>
+                    <div className="text-xs text-gray-400">Passed</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-neon-red">{stats.failed}</div>
+                    <div className="text-xs text-gray-400">Failed</div>
+                  </div>
+                </div>
+
+                {stats.total > 0 && (
+                  <div className="w-full bg-gray-800 rounded-full h-2 mb-4">
+                    <div
+                      className="bg-neon-green h-2 rounded-full transition-all"
+                      style={{ width: `${(stats.passed / stats.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {results.length === 0 ? (
+                    <div className="text-center text-gray-400 py-4 text-sm">
+                      No test results yet
+                    </div>
+                  ) : (
+                    results.map((test) => (
+                      <div
+                        key={test.id}
+                        className="glass-card p-2 flex items-center justify-between text-sm"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {getStatusIcon(test.status)}
+                          <span className="truncate font-mono text-xs">{test.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          {test.duration && (
+                            <span className="text-xs text-gray-400">
+                              {test.duration.toFixed(2)}s
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => setSelectedSuite(suite.id)}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  View Details
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       {testSuites.length === 0 && (
-        <Card title="No Test Results">
+        <Card title="No Test Suites">
           <div className="text-center py-8 text-gray-400">
             <TestTube className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-            <p>Click "Run All Tests" to execute the test suite</p>
+            <p>No test suites found. Create test suites to get started.</p>
           </div>
         </Card>
       )}

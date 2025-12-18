@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -233,54 +233,50 @@ impl AutomationStore {
 
     pub fn get_executions(&self, workflow_id: Option<i64>, limit: i32) -> Result<Vec<WorkflowExecution>> {
         let conn = self.conn.lock().unwrap();
-        let query = if workflow_id.is_some() {
-            "SELECT id, workflow_id, status, started_at, completed_at, error
-             FROM workflow_executions
-             WHERE workflow_id = ?1
-             ORDER BY started_at DESC
-             LIMIT ?2"
-        } else {
-            "SELECT id, workflow_id, status, started_at, completed_at, error
-             FROM workflow_executions
-             ORDER BY started_at DESC
-             LIMIT ?1"
-        };
-
-        let mut stmt = if workflow_id.is_some() {
-            conn.prepare(query)?
-        } else {
-            conn.prepare(query)?
-        };
-
-        let rows = if let Some(wf_id) = workflow_id {
-            stmt.query_map(params![wf_id, limit], |row| {
-                Ok(WorkflowExecution {
-                    id: row.get(0)?,
-                    workflow_id: row.get(1)?,
-                    status: row.get(2)?,
-                    started_at: row.get(3)?,
-                    completed_at: row.get(4)?,
-                    error: row.get(5)?,
-                })
-            })?
-        } else {
-            stmt.query_map(params![limit], |row| {
-                Ok(WorkflowExecution {
-                    id: row.get(0)?,
-                    workflow_id: row.get(1)?,
-                    status: row.get(2)?,
-                    started_at: row.get(3)?,
-                    completed_at: row.get(4)?,
-                    error: row.get(5)?,
-                })
-            })?
-        };
-
         let mut executions = Vec::new();
-        for row in rows {
-            executions.push(row?);
+        
+        if let Some(wf_id) = workflow_id {
+            let mut stmt = conn.prepare(
+                "SELECT id, workflow_id, status, started_at, completed_at, error
+                 FROM workflow_executions
+                 WHERE workflow_id = ?1
+                 ORDER BY started_at DESC
+                 LIMIT ?2"
+            )?;
+            let rows = stmt.query_map(params![wf_id, limit], |row| {
+                Ok(WorkflowExecution {
+                    id: row.get(0)?,
+                    workflow_id: row.get(1)?,
+                    status: row.get(2)?,
+                    started_at: row.get(3)?,
+                    completed_at: row.get(4)?,
+                    error: row.get(5)?,
+                })
+            })?;
+            for row in rows {
+                executions.push(row?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, workflow_id, status, started_at, completed_at, error
+                 FROM workflow_executions
+                 ORDER BY started_at DESC
+                 LIMIT ?1"
+            )?;
+            let rows = stmt.query_map(params![limit], |row| {
+                Ok(WorkflowExecution {
+                    id: row.get(0)?,
+                    workflow_id: row.get(1)?,
+                    status: row.get(2)?,
+                    started_at: row.get(3)?,
+                    completed_at: row.get(4)?,
+                    error: row.get(5)?,
+                })
+            })?;
+            for row in rows {
+                executions.push(row?);
+            }
         }
         Ok(executions)
     }
 }
-

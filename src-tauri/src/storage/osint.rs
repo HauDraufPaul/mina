@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -136,7 +136,14 @@ impl OSINTStore {
             params![url, name, now],
         )?;
 
-        Ok(conn.last_insert_rowid())
+        // Get the ID
+        let id: i64 = conn.query_row(
+            "SELECT id FROM rss_feeds WHERE url = ?1",
+            params![url],
+            |row| row.get(0),
+        )?;
+
+        Ok(id)
     }
 
     pub fn list_feeds(&self) -> Result<Vec<RSSFeed>> {
@@ -180,7 +187,14 @@ impl OSINTStore {
             params![feed_id, title, content, url, published_at, fetched_at],
         )?;
 
-        Ok(conn.last_insert_rowid())
+        // Get the ID
+        let id: i64 = conn.query_row(
+            "SELECT id FROM rss_items WHERE url = ?1",
+            params![url],
+            |row| row.get(0),
+        )?;
+
+        Ok(id)
     }
 
     pub fn get_recent_items(&self, limit: i32) -> Result<Vec<RSSItem>> {
@@ -226,43 +240,40 @@ impl OSINTStore {
 
     pub fn list_entities(&self, entity_type: Option<&str>) -> Result<Vec<Entity>> {
         let conn = self.conn.lock().unwrap();
-        let query = if entity_type.is_some() {
-            "SELECT id, entity_type, name, metadata, created_at FROM entities WHERE entity_type = ?1 ORDER BY name"
-        } else {
-            "SELECT id, entity_type, name, metadata, created_at FROM entities ORDER BY name"
-        };
-
-        let mut stmt = if entity_type.is_some() {
-            conn.prepare(query)?
-        } else {
-            conn.prepare(query)?
-        };
-
-        let rows = if let Some(et) = entity_type {
-            stmt.query_map(params![et], |row| {
-                Ok(Entity {
-                    id: row.get(0)?,
-                    entity_type: row.get(1)?,
-                    name: row.get(2)?,
-                    metadata: row.get(3)?,
-                    created_at: row.get(4)?,
-                })
-            })?
-        } else {
-            stmt.query_map([], |row| {
-                Ok(Entity {
-                    id: row.get(0)?,
-                    entity_type: row.get(1)?,
-                    name: row.get(2)?,
-                    metadata: row.get(3)?,
-                    created_at: row.get(4)?,
-                })
-            })?
-        };
-
         let mut entities = Vec::new();
-        for row in rows {
-            entities.push(row?);
+        
+        if let Some(et) = entity_type {
+            let mut stmt = conn.prepare(
+                "SELECT id, entity_type, name, metadata, created_at FROM entities WHERE entity_type = ?1 ORDER BY name"
+            )?;
+            let rows = stmt.query_map(params![et], |row| {
+                Ok(Entity {
+                    id: row.get(0)?,
+                    entity_type: row.get(1)?,
+                    name: row.get(2)?,
+                    metadata: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?;
+            for row in rows {
+                entities.push(row?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, entity_type, name, metadata, created_at FROM entities ORDER BY name"
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Entity {
+                    id: row.get(0)?,
+                    entity_type: row.get(1)?,
+                    name: row.get(2)?,
+                    metadata: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?;
+            for row in rows {
+                entities.push(row?);
+            }
         }
         Ok(entities)
     }
@@ -286,4 +297,3 @@ impl OSINTStore {
         Ok(conn.last_insert_rowid())
     }
 }
-

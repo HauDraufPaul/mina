@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -184,11 +184,13 @@ impl TestingStore {
             |row| row.get(0),
         )?;
 
-        let avg_duration: Option<f64> = conn.query_row(
-            "SELECT AVG(duration) FROM test_results WHERE suite_id = ?1 AND duration IS NOT NULL",
-            params![suite_id],
-            |row| row.get(0),
-        ).optional()?;
+        let avg_duration: Option<f64> = conn
+            .query_row(
+                "SELECT AVG(duration) FROM test_results WHERE suite_id = ?1 AND duration IS NOT NULL",
+                params![suite_id],
+                |row| row.get(0),
+            )
+            .optional()?;
 
         Ok(TestSuiteStats {
             total: total as usize,
