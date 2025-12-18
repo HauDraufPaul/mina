@@ -23,6 +23,29 @@ pub struct RSSItem {
     pub url: String,
     pub published_at: i64,
     pub fetched_at: i64,
+    pub read: bool,
+    pub favorite: bool,
+    pub saved: bool,
+    pub folder_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArticleFolder {
+    pub id: i64,
+    pub name: String,
+    pub color: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtractedEntity {
+    pub id: i64,
+    pub article_id: i64,
+    pub entity_type: String,
+    pub name: String,
+    pub confidence: f64,
+    pub context: Option<String>,
+    pub extracted_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +68,7 @@ pub struct EntityRelationship {
 }
 
 pub struct OSINTStore {
-    conn: Arc<Mutex<Connection>>,
+    pub conn: Arc<Mutex<Connection>>,
 }
 
 impl OSINTStore {
@@ -92,7 +115,43 @@ impl OSINTStore {
                 url TEXT NOT NULL UNIQUE,
                 published_at INTEGER NOT NULL,
                 fetched_at INTEGER NOT NULL,
-                FOREIGN KEY (feed_id) REFERENCES rss_feeds(id)
+                read INTEGER NOT NULL DEFAULT 0,
+                favorite INTEGER NOT NULL DEFAULT 0,
+                saved INTEGER NOT NULL DEFAULT 0,
+                folder_id INTEGER,
+                FOREIGN KEY (feed_id) REFERENCES rss_feeds(id),
+                FOREIGN KEY (folder_id) REFERENCES article_folders(id)
+            )",
+            [],
+        )?;
+
+        // Migrate existing rss_items table
+        let _ = conn.execute("ALTER TABLE rss_items ADD COLUMN read INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE rss_items ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE rss_items ADD COLUMN saved INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE rss_items ADD COLUMN folder_id INTEGER", []);
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS article_folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT,
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS extracted_entities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER NOT NULL,
+                entity_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                context TEXT,
+                extracted_at INTEGER NOT NULL,
+                FOREIGN KEY (article_id) REFERENCES rss_items(id) ON DELETE CASCADE,
+                UNIQUE(article_id, entity_type, name)
             )",
             [],
         )?;
@@ -134,6 +193,31 @@ impl OSINTStore {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_relationships_source ON entity_relationships(source_id)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rss_items_read ON rss_items(read)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rss_items_favorite ON rss_items(favorite)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rss_items_saved ON rss_items(saved)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_extracted_entities_article ON extracted_entities(article_id)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_extracted_entities_type ON extracted_entities(entity_type)",
             [],
         )?;
 
@@ -226,6 +310,13 @@ impl OSINTStore {
         Ok(())
     }
 
+    pub fn update_feed_last_fetch(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().timestamp();
+        conn.execute("UPDATE rss_feeds SET last_fetch = ?1 WHERE id = ?2", params![now, id])?;
+        Ok(())
+    }
+
     pub fn delete_feed(&self, id: i64) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM rss_feeds WHERE id = ?1", params![id])?;
@@ -272,8 +363,8 @@ impl OSINTStore {
         let fetched_at = chrono::Utc::now().timestamp();
 
         conn.execute(
-            "INSERT OR IGNORE INTO rss_items (feed_id, title, content, url, published_at, fetched_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR IGNORE INTO rss_items (feed_id, title, content, url, published_at, fetched_at, read, favorite, saved)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0)",
             params![feed_id, title, content, url, published_at, fetched_at],
         )?;
 
@@ -291,7 +382,8 @@ impl OSINTStore {
         let conn = self.conn.lock().unwrap();
         // Get items ordered by feed reliability and recency
         let mut stmt = conn.prepare(
-            "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at
+            "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at, 
+                    i.read, i.favorite, i.saved, i.folder_id
              FROM rss_items i
              JOIN rss_feeds f ON i.feed_id = f.id
              WHERE f.enabled = 1
@@ -308,6 +400,10 @@ impl OSINTStore {
                 url: row.get(4)?,
                 published_at: row.get(5)?,
                 fetched_at: row.get(6)?,
+                read: row.get::<_, i64>(7)? == 1,
+                favorite: row.get::<_, i64>(8)? == 1,
+                saved: row.get::<_, i64>(9)? == 1,
+                folder_id: row.get(10)?,
             })
         })?;
 
@@ -316,6 +412,238 @@ impl OSINTStore {
             items.push(row?);
         }
         Ok(items)
+    }
+
+    pub fn get_item(&self, id: i64) -> Result<Option<RSSItem>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, feed_id, title, content, url, published_at, fetched_at, read, favorite, saved, folder_id
+             FROM rss_items WHERE id = ?1"
+        )?;
+
+        match stmt.query_row(params![id], |row| {
+            Ok(RSSItem {
+                id: row.get(0)?,
+                feed_id: row.get(1)?,
+                title: row.get(2)?,
+                content: row.get(3)?,
+                url: row.get(4)?,
+                published_at: row.get(5)?,
+                fetched_at: row.get(6)?,
+                read: row.get::<_, i64>(7)? == 1,
+                favorite: row.get::<_, i64>(8)? == 1,
+                saved: row.get::<_, i64>(9)? == 1,
+                folder_id: row.get(10)?,
+            })
+        }) {
+            Ok(item) => Ok(Some(item)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(anyhow::anyhow!("Database error: {}", e)),
+        }
+    }
+
+    pub fn mark_as_read(&self, id: i64, read: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE rss_items SET read = ?1 WHERE id = ?2",
+            params![if read { 1i64 } else { 0i64 }, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn toggle_favorite(&self, id: i64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let current: i64 = conn.query_row(
+            "SELECT favorite FROM rss_items WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        let new_value = if current == 1 { 0 } else { 1 };
+        conn.execute(
+            "UPDATE rss_items SET favorite = ?1 WHERE id = ?2",
+            params![new_value, id],
+        )?;
+        Ok(new_value == 1)
+    }
+
+    pub fn toggle_saved(&self, id: i64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let current: i64 = conn.query_row(
+            "SELECT saved FROM rss_items WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        let new_value = if current == 1 { 0 } else { 1 };
+        conn.execute(
+            "UPDATE rss_items SET saved = ?1 WHERE id = ?2",
+            params![new_value, id],
+        )?;
+        Ok(new_value == 1)
+    }
+
+    pub fn set_folder(&self, id: i64, folder_id: Option<i64>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE rss_items SET folder_id = ?1 WHERE id = ?2",
+            params![folder_id, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn create_folder(&self, name: &str, color: Option<&str>) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().timestamp();
+        conn.execute(
+            "INSERT INTO article_folders (name, color, created_at) VALUES (?1, ?2, ?3)",
+            params![name, color, now],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn list_folders(&self) -> Result<Vec<ArticleFolder>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, color, created_at FROM article_folders ORDER BY name"
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(ArticleFolder {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                color: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?;
+
+        let mut folders = Vec::new();
+        for row in rows {
+            folders.push(row?);
+        }
+        Ok(folders)
+    }
+
+    pub fn delete_folder(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE rss_items SET folder_id = NULL WHERE folder_id = ?1",
+            params![id],
+        )?;
+        conn.execute("DELETE FROM article_folders WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn get_items_by_filter(
+        &self,
+        favorite: Option<bool>,
+        saved: Option<bool>,
+        read: Option<bool>,
+        folder_id: Option<i64>,
+        limit: i32,
+    ) -> Result<Vec<RSSItem>> {
+        let conn = self.conn.lock().unwrap();
+        let mut query = "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at, 
+                                i.read, i.favorite, i.saved, i.folder_id
+                         FROM rss_items i
+                         JOIN rss_feeds f ON i.feed_id = f.id
+                         WHERE f.enabled = 1".to_string();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        if let Some(fav) = favorite {
+            query.push_str(" AND i.favorite = ?");
+            params_vec.push(Box::new(if fav { 1i64 } else { 0i64 }));
+        }
+        if let Some(sav) = saved {
+            query.push_str(" AND i.saved = ?");
+            params_vec.push(Box::new(if sav { 1i64 } else { 0i64 }));
+        }
+        if let Some(rd) = read {
+            query.push_str(" AND i.read = ?");
+            params_vec.push(Box::new(if rd { 1i64 } else { 0i64 }));
+        }
+        if let Some(fid) = folder_id {
+            query.push_str(" AND i.folder_id = ?");
+            params_vec.push(Box::new(fid));
+        }
+
+        query.push_str(" ORDER BY f.reliability DESC, i.published_at DESC LIMIT ?");
+        params_vec.push(Box::new(limit));
+
+        let mut params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = conn.prepare(&query)?;
+
+        let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), |row| {
+            Ok(RSSItem {
+                id: row.get(0)?,
+                feed_id: row.get(1)?,
+                title: row.get(2)?,
+                content: row.get(3)?,
+                url: row.get(4)?,
+                published_at: row.get(5)?,
+                fetched_at: row.get(6)?,
+                read: row.get::<_, i64>(7)? == 1,
+                favorite: row.get::<_, i64>(8)? == 1,
+                saved: row.get::<_, i64>(9)? == 1,
+                folder_id: row.get(10)?,
+            })
+        })?;
+
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn save_extracted_entity(
+        &self,
+        article_id: i64,
+        entity_type: &str,
+        name: &str,
+        confidence: f64,
+        context: Option<&str>,
+    ) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().timestamp();
+        conn.execute(
+            "INSERT OR IGNORE INTO extracted_entities (article_id, entity_type, name, confidence, context, extracted_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![article_id, entity_type, name, confidence, context, now],
+        )?;
+
+        let id: i64 = conn.query_row(
+            "SELECT id FROM extracted_entities WHERE article_id = ?1 AND entity_type = ?2 AND name = ?3",
+            params![article_id, entity_type, name],
+            |row| row.get(0),
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_entities_for_article(&self, article_id: i64) -> Result<Vec<ExtractedEntity>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, article_id, entity_type, name, confidence, context, extracted_at
+             FROM extracted_entities
+             WHERE article_id = ?1
+             ORDER BY confidence DESC, entity_type, name"
+        )?;
+
+        let rows = stmt.query_map(params![article_id], |row| {
+            Ok(ExtractedEntity {
+                id: row.get(0)?,
+                article_id: row.get(1)?,
+                entity_type: row.get(2)?,
+                name: row.get(3)?,
+                confidence: row.get(4)?,
+                context: row.get(5)?,
+                extracted_at: row.get(6)?,
+            })
+        })?;
+
+        let mut entities = Vec::new();
+        for row in rows {
+            entities.push(row?);
+        }
+        Ok(entities)
     }
 
     pub fn create_entity(&self, entity_type: &str, name: &str, metadata: &str) -> Result<i64> {

@@ -3,7 +3,7 @@ import { Activity, Settings } from "lucide-react";
 
 export default function Navbar() {
   return (
-    <nav className="glass-card p-4 mb-6">
+    <nav className="glass-card p-4 mb-6 sticky top-0 z-50 backdrop-blur-md bg-black/80 border-b border-white/10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link to="/" className="text-2xl font-bold phosphor-glow-cyan">

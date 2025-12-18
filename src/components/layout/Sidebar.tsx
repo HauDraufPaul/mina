@@ -49,7 +49,7 @@ export default function Sidebar() {
   const location = useLocation();
 
   return (
-    <aside className="w-64 glass-card p-4 mr-6">
+    <aside className="w-64 glass-card p-4 mr-6 sticky top-[88px] self-start h-[calc(100vh-88px)] overflow-y-auto">
       <nav className="space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon;
