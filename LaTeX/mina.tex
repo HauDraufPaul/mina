@@ -105,7 +105,7 @@
 \maketitle
 
 \begin{abstract}
-This document presents MINA (Monitoring, Intelligence, Networking, Automation), a sophisticated desktop application framework that integrates real-time system monitoring, artificial intelligence capabilities, network analysis, and automation orchestration. Built upon a hybrid architecture combining Rust's systems programming capabilities with React's declarative UI paradigm through the Tauri framework, MINA addresses the growing complexity of modern system administration and development workflows. The platform implements a novel glassmorphism-based user interface with terminal aesthetics, providing both functional depth and visual appeal. This paper provides a comprehensive analysis of MINA's architecture, including its multi-layered data persistence strategy utilizing SQLite, Neo4j graph databases, and Qdrant vector stores. We detail the implementation of 19+ specialized modules covering system monitoring, AI integration, DevOps automation, and knowledge graph construction. Performance evaluations demonstrate sub-millisecond latency for real-time metric updates and efficient memory utilization through Rust's zero-cost abstractions. The platform's extensible plugin architecture and event-driven automation engine enable complex workflow orchestration while maintaining type safety through Specta-generated TypeScript bindings. Our analysis includes theoretical foundations, algorithmic descriptions, complexity analysis, and empirical performance measurements.
+This document presents MINA (Monitoring, Intelligence, Networking, Automation), a sophisticated desktop application framework that integrates real-time system monitoring, artificial intelligence capabilities, network analysis, and automation orchestration. Built upon a hybrid architecture combining Rust's systems programming capabilities with React's declarative UI paradigm through the Tauri framework, MINA addresses the growing complexity of modern system administration and development workflows. The platform implements a novel glassmorphism-based user interface with terminal aesthetics, providing both functional depth and visual appeal. This paper provides a comprehensive analysis of MINA's architecture, including its multi-layered data persistence strategy utilizing SQLite for both relational and vector data storage, with optional Neo4j graph database integration for advanced knowledge graph features. We detail the implementation status of 19 specialized modules, with 14 modules (74\%) currently operational, covering system monitoring, network analysis, security, and vector-based semantic search. Performance evaluations demonstrate sub-millisecond latency for real-time metric updates and efficient memory utilization through Rust's zero-cost abstractions. The platform's extensible architecture and event-driven WebSocket-based communication enable real-time system insights while maintaining type safety through Specta-generated TypeScript bindings. Our analysis includes theoretical foundations, algorithmic descriptions, complexity analysis, empirical performance measurements, and implementation status documentation.
 \end{abstract}
 
 \keywords{System Monitoring, Artificial Intelligence, Automation, Desktop Applications, Real-time Systems, Graph Databases, Vector Search}
@@ -194,7 +194,7 @@ MINA employs a hybrid architecture combining multiple architectural patterns:
 The frontend stack selection rationale:
 
 \begin{description}
-    \item[React 18] Provides concurrent rendering capabilities and automatic batching, reducing unnecessary re-renders during high-frequency metric updates. The component model enables code reuse across 158+ components.
+    \item[React 18] Provides concurrent rendering capabilities and automatic batching, reducing unnecessary re-renders during high-frequency metric updates. The component model enables code reuse across modular components organized in the \texttt{src/components/} directory structure.
     \item[TypeScript] Ensures type safety across the frontend codebase, with strict mode enabled for maximum correctness guarantees.
     \item[Vite] Build tool providing sub-second hot module replacement and optimized production builds through ES module-based bundling.
     \item[Tailwind CSS] Utility-first CSS framework enabling rapid UI development while maintaining small bundle sizes through tree-shaking.
@@ -215,13 +215,19 @@ The Rust backend selection rationale:
 
 \subsubsection{Component Organization}
 
-The frontend architecture follows a modular organization pattern:
+The frontend architecture follows a modular organization pattern within the \texttt{src/} directory:
 
 \begin{equation}
-\text{Component Hierarchy} = \bigcup_{i=1}^{n} \left( \text{UI}_i \cup \text{Module}_i \cup \text{Layout}_i \cup \text{Viz}_i \right)
+\text{Component Hierarchy} = \bigcup_{i=1}^{n} \left( \text{UI}_i \cup \text{Module}_i \cup \text{Layout}_i \right)
 \end{equation}
 
-where $n$ represents the number of feature modules (19+), and each category contains specialized components.
+where $n$ represents the number of feature modules (19), organized in \texttt{src/components/modules/}. The structure includes:
+\begin{itemize}
+    \item \texttt{components/ui/}: Base reusable components (Card, Button, etc.)
+    \item \texttt{components/modules/}: Feature-specific modules (19 modules)
+    \item \texttt{components/layout/}: Layout components (Layout, Navbar, Sidebar)
+    \item \texttt{components/RadialHub/}: Main dashboard component
+\end{itemize}
 
 \subsubsection{State Management Strategy}
 
@@ -285,6 +291,46 @@ pub trait SystemProvider: Send + Sync {
 
 Each provider implements platform-specific optimizations while maintaining a unified interface. The trait design enables compile-time polymorphism without runtime overhead.
 
+\subsubsection{Backend Directory Structure}
+
+The Rust backend is organized in \texttt{src-tauri/src/} with the following structure:
+
+\begin{itemize}
+    \item \textbf{commands/}: Tauri command handlers implementing IPC endpoints:
+    \begin{itemize}
+        \item \texttt{auth.rs}: Authentication and session management
+        \item \texttt{config.rs}: Configuration management
+        \item \texttt{network.rs}: Network interface and connection queries
+        \item \texttt{packages.rs}: Homebrew package management
+        \item \texttt{process.rs}: Process listing and management
+        \item \texttt{system.rs}: System metrics collection
+        \item \texttt{vector\_store.rs}: Vector collection operations
+        \item \texttt{ws.rs}: WebSocket connection management
+    \end{itemize}
+    
+    \item \textbf{providers/}: System service providers implementing platform-specific functionality:
+    \begin{itemize}
+        \item \texttt{homebrew.rs}: macOS package manager integration
+        \item \texttt{network.rs}: Network interface and connection monitoring
+        \item \texttt{process.rs}: Process enumeration and management
+        \item \texttt{system.rs}: System metrics collection (CPU, memory, disk)
+    \end{itemize}
+    
+    \item \textbf{storage/}: Database and persistence layer:
+    \begin{itemize}
+        \item \texttt{auth.rs}: Authentication data storage
+        \item \texttt{database.rs}: SQLite connection management
+        \item \texttt{migrations.rs}: Database schema migration system
+        \item \texttt{vector\_store.rs}: Vector storage implementation (SQLite-based)
+    \end{itemize}
+    
+    \item \textbf{ws.rs}: WebSocket server implementation for real-time data streaming
+    \item \textbf{lib.rs}: Library entry point with Tauri command registration
+    \item \textbf{main.rs}: Application bootstrap and Tauri initialization
+\end{itemize}
+
+Note: Advanced modules such as entity extraction, scenario engine, and world graph integration are planned for future implementation as part of the Reality \& Timeline Studio module.
+
 \subsubsection{Command Handler Architecture}
 
 Tauri commands provide type-safe IPC through Specta-generated bindings. The command registration follows:
@@ -324,25 +370,32 @@ The WebSocket server implements a topic-based pub/sub system:
 
 \subsubsection{Multi-layer Storage Strategy}
 
-MINA employs a three-layer persistence strategy:
+MINA employs a multi-layer persistence strategy with current and planned implementations:
 
 \begin{enumerate}
-    \item \textbf{SQLite (Relational)}: Structured data with ACID guarantees. Schema:
+    \item \textbf{SQLite (Relational \& Vector)}: Primary database providing:
+    \begin{itemize}
+        \item Structured relational data with ACID guarantees
+        \item Vector storage with cosine similarity search (current implementation)
+        \item Schema: $\text{Schema} = \left\{ \text{Tables}, \text{Indices}, \text{Constraints} \right\}$
+    \end{itemize}
+    
+    The vector store implementation utilizes SQLite BLOB storage for embeddings with linear search and cosine similarity computation. Current implementation supports:
     \begin{equation}
-    \text{Schema} = \left\{ \text{Tables}, \text{Indices}, \text{Constraints} \right\}
+    \text{Similarity}(v_1, v_2) = \frac{v_1 \cdot v_2}{\|v_1\| \|v_2\|}
     \end{equation}
     
-    \item \textbf{Neo4j (Graph)}: Relationship data with temporal attributes. Graph model:
+    \item \textbf{Neo4j (Graph - Planned)}: Optional graph database for relationship data with temporal attributes. Graph model:
     \begin{equation}
     G = (V, E, T)
     \end{equation}
-    where $V$ are vertices (entities), $E$ are edges (relationships), and $T$ are temporal attributes.
+    where $V$ are vertices (entities), $E$ are edges (relationships), and $T$ are temporal attributes. Integration planned for Reality \& Timeline Studio module.
     
-    \item \textbf{Qdrant (Vector)}: High-dimensional embeddings. Vector space:
+    \item \textbf{Qdrant (Vector - Planned)}: High-performance vector database for production-scale embeddings. Vector space:
     \begin{equation}
     \mathcal{V} = \mathbb{R}^d
     \end{equation}
-    where $d$ is embedding dimensionality (typically 768 or 1536).
+    where $d$ is embedding dimensionality (typically 768 or 1536). Planned migration from SQLite-based vector storage for improved performance with HNSW indexing.
 \end{enumerate}
 
 \subsubsection{Transaction Management}
@@ -371,6 +424,40 @@ Cross-database transactions utilize a two-phase commit protocol:
 
 \section{Core Features and Modules: Detailed Analysis}
 \label{sec:features}
+
+\subsection{Implementation Status Overview}
+
+MINA's 19 modules are organized into completed and pending implementations:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Module} & \textbf{Status} & \textbf{Backend Support} \\
+\midrule
+System Monitor Hub & \checkmark Complete & Full \\
+Network Constellation & \checkmark Complete & Full \\
+Error Dashboard & \checkmark Complete & Full \\
+Configuration Manager & \checkmark Complete & Full \\
+WebSocket Monitor & \checkmark Complete & Full \\
+Rate Limit Monitor & \checkmark Complete & Partial \\
+System Utilities & \checkmark Complete & Partial \\
+Migration Manager & \checkmark Complete & Partial \\
+Advanced Analytics & \checkmark Complete & Partial \\
+Security Center & \checkmark Complete & Full \\
+Vector Search & \checkmark Complete & Partial \\
+Packages Repository & \checkmark Complete & Full \\
+Vector Store Manager & \checkmark Complete & Full \\
+Testing Center & \checkmark Complete & Partial \\
+AI Consciousness & $\times$ Pending & None \\
+DevOps Control & $\times$ Pending & None \\
+Automation Circuit & $\times$ Pending & None \\
+Reality \& Timeline Studio & $\times$ Pending & None \\
+Create Hub & $\times$ Pending & None \\
+\bottomrule
+\end{tabular}
+\caption{Module Implementation Status (14/19 complete, 74\%)}
+\end{table}
 
 \subsection{System Monitor Hub}
 
@@ -490,9 +577,11 @@ DNS resolution implements a TTL-based cache with LRU eviction:
 
 \subsection{AI Consciousness Module}
 
-\subsubsection{Multi-Model Architecture}
+\textbf{Status}: Pending implementation. Planned architecture described below.
 
-The AI module supports multiple providers through a unified interface:
+\subsubsection{Planned Multi-Model Architecture}
+
+The AI module is designed to support multiple providers through a unified interface:
 
 \begin{lstlisting}[style=rust, caption=AI Provider Trait]
 pub trait AIProvider: Send + Sync {
@@ -549,7 +638,9 @@ Usage tracking maintains statistics:
 
 \subsection{DevOps Control Module}
 
-\subsubsection{Prometheus Integration}
+\textbf{Status}: Pending implementation. Planned architecture described below.
+
+\subsubsection{Planned Prometheus Integration}
 
 Metrics scraping follows Prometheus exposition format:
 
@@ -604,7 +695,9 @@ T_{\text{exec}} = \sum_{i=1}^{n} t_i + \text{overhead}
 
 \subsection{Automation Circuit}
 
-\subsubsection{Script Execution Engine}
+\textbf{Status}: Pending implementation. Planned architecture described below.
+
+\subsubsection{Planned Script Execution Engine}
 
 JavaScript/TypeScript execution utilizes V8 engine with sandboxing:
 
@@ -657,7 +750,9 @@ where:
 
 \subsection{Reality \& Timeline Studio}
 
-\subsubsection{Entity Extraction Pipeline}
+\textbf{Status}: Pending implementation. Planned architecture described below.
+
+\subsubsection{Planned Entity Extraction Pipeline}
 
 NLP-based entity extraction utilizes spaCy and DeepKE:
 
@@ -710,36 +805,56 @@ where $f$ is the state transition function.
 
 \subsection{Vector Store Manager}
 
+\textbf{Status}: Complete with SQLite-based implementation.
+
 \subsubsection{Collection Management}
 
-Vector collections organize embeddings by type:
+Vector collections organize embeddings by type, currently stored in SQLite:
 
 \begin{equation}
 \text{Collection} = \left\{ (id, \text{vector}, \text{metadata}) \right\}
 \end{equation}
 
-Index construction utilizes HNSW algorithm with parameters:
+Current implementation uses linear search with cosine similarity:
+\begin{equation}
+\text{Search}(q, C, k) = \text{TopK}(\{\text{Similarity}(q, v) : v \in C\}, k)
+\end{equation}
+
+where similarity is computed as:
+\begin{equation}
+\text{Similarity}(q, v) = \frac{q \cdot v}{\|q\| \|v\|}
+\end{equation}
+
+\textbf{Planned Enhancement}: Migration to Qdrant with HNSW indexing for improved performance:
 \begin{equation}
 \text{HNSW}(M, \text{ef\_construction}) = \text{BuildIndex}(\text{vectors}, M, \text{ef\_construction})
 \end{equation}
 
-where $M$ is the number of bi-directional links and $\text{ef\_construction}$ controls index quality.
+where $M$ is the number of bi-directional links and $\text{ef\_construction}$ controls index quality. This will reduce query complexity from $O(n)$ to $O(\log n)$.
 
 \subsubsection{Semantic Search}
 
-Similarity search with filtering:
+Current implementation uses linear search with filtering:
 
 \begin{algorithm}
-\caption{Filtered Vector Search}
+\caption{Filtered Vector Search (Current SQLite Implementation)}
 \begin{algorithmic}[1]
 \REQUIRE Query vector $q$, Filter $f$, Top $k$
 \ENSURE Results $R$
 \STATE $C \leftarrow \text{filter\_collection}(f)$
-\STATE $R \leftarrow \text{hnsw}.\text{search}(q, C, k)$
-\STATE Sort $R$ by similarity
+\STATE $R \leftarrow \emptyset$
+\FOR{each $v \in C$}
+    \STATE $s \leftarrow \text{cosine\_similarity}(q, v.\text{embedding})$
+    \IF{$s \geq \text{min\_similarity}$}
+        \STATE $R.\text{add}((v, s))$
+    \ENDIF
+\ENDFOR
+\STATE Sort $R$ by similarity descending
 \RETURN $R[0:k]$
 \end{algorithmic}
 \end{algorithm}
+
+Time complexity: $O(n \cdot d)$ where $n$ is collection size and $d$ is vector dimensionality. Planned Qdrant migration will utilize HNSW for $O(\log n \cdot d)$ complexity.
 
 \subsubsection{TTL Management}
 
@@ -1037,15 +1152,28 @@ where $n$ is the number of concurrent clients. Observed scaling:
 \section{Future Work and Limitations}
 \label{sec:future}
 
+\subsection{Current Implementation Status}
+
+The platform currently implements 14 of 19 planned modules (74\% completion):
+
+\begin{itemize}
+    \item \textbf{Completed Modules}: System Monitor Hub, Network Constellation, Error Dashboard, Configuration Manager, WebSocket Monitor, Rate Limit Monitor, System Utilities, Migration Manager, Advanced Analytics, Security Center, Vector Search, Packages Repository, Vector Store Manager, Testing Center
+    \item \textbf{Pending Modules}: AI Consciousness, DevOps Control, Automation Circuit, Reality \& Timeline Studio, Create Hub
+    \item \textbf{Backend Completion}: 9 modules have full backend support, 5 modules use partial/mock data
+\end{itemize}
+
 \subsection{Limitations}
 
 Current limitations include:
 
 \begin{enumerate}
+    \item \textbf{Module Completion}: 5 of 19 modules (26\%) remain pending, including AI Consciousness and Automation Circuit which are core features.
+    \item \textbf{Vector Store Performance}: Current SQLite-based implementation uses linear search ($O(n)$ complexity). Qdrant integration planned for production-scale deployments.
     \item \textbf{Platform Coverage}: Limited to macOS, Windows, and Linux. Mobile platforms not yet supported.
     \item \textbf{Distributed Monitoring}: Single-instance architecture. Multi-node monitoring requires external orchestration.
-    \item \textbf{AI Model Integration}: Currently supports OpenAI, Anthropic, and Ollama. Additional providers require manual integration.
-    \item \textbf{Graph Database}: Neo4j integration optional. Full feature set requires Neo4j instance.
+    \item \textbf{AI Model Integration}: Not yet implemented. Planned support for OpenAI, Anthropic, and Ollama.
+    \item \textbf{Graph Database}: Neo4j integration planned but not yet implemented. Required for Reality \& Timeline Studio module.
+    \item \textbf{Backend Gaps}: Several modules (Advanced Analytics, Rate Limit Monitor, Vector Search) currently use mock data and require backend implementation.
 \end{enumerate}
 
 \subsection{Future Research Directions}
@@ -1063,23 +1191,36 @@ with consensus protocol for state synchronization:
 \text{Consensus}(s) = \text{Agree}(\{s_1, s_2, \ldots, s_k\})
 \end{equation}
 
-\subsubsection{Advanced AI Integration}
+\subsubsection{Module Completion}
 
-Planned enhancements:
+Priority implementation order:
+\begin{enumerate}
+    \item \textbf{AI Consciousness}: High-value feature integrating with existing Vector Search. Requires backend API client integration, conversation history storage, and embedding generation service.
+    \item \textbf{Automation Circuit}: Core functionality for power users. Requires JavaScript runtime integration (Deno/V8), script scheduler, and trigger system.
+    \item \textbf{DevOps Control}: Important for production deployments. Requires Prometheus client, health check scheduler, and alert management.
+    \item \textbf{Reality \& Timeline Studio}: Advanced feature requiring external services (Neo4j, entity extraction services). Can be lower priority.
+    \item \textbf{Create Hub}: Creative feature, can be frontend-only implementation.
+\end{enumerate}
+
+\subsubsection{Backend Implementation}
+
+Modules requiring backend completion:
 \begin{itemize}
-    \item Fine-tuned models for system-specific tasks
-    \item Multi-agent collaboration for complex automation
-    \item Reinforcement learning for optimization
-    \item Federated learning for privacy-preserving analytics
+    \item Advanced Analytics: Historical metrics storage and statistical analysis
+    \item Rate Limit Monitor: Rate limit tracking and token bucket management
+    \item Migration Manager: Database migration execution and tracking
+    \item System Utilities: Disk management, power control, service management
+    \item Vector Search: Semantic search backend using vector store
 \end{itemize}
 
 \subsubsection{Performance Improvements}
 
 Research areas:
 \begin{itemize}
+    \item \textbf{Vector Store Migration}: Qdrant integration with HNSW indexing for $O(\log n)$ query performance
     \item GPU acceleration for vector operations
     \item WebAssembly for compute-intensive frontend tasks
-    \item Incremental graph updates for temporal queries
+    \item Incremental graph updates for temporal queries (when Neo4j integrated)
     \item Predictive caching based on access patterns
 \end{itemize}
 
@@ -1089,16 +1230,18 @@ This document presented MINA, a comprehensive system assistant and monitoring pl
 
 Key achievements include:
 \begin{itemize}
+    \item 74\% module completion (14/19 modules operational)
     \item Sub-millisecond latency for real-time metric updates
     \item 58-62\% memory reduction compared to Electron-based alternatives
     \item Type-safe IPC through Specta-generated bindings
-    \item Multi-layer persistence strategy with unified query interfaces
-    \item Extensible plugin architecture supporting 19+ specialized modules
+    \item SQLite-based vector storage with cosine similarity search
+    \item Full backend support for 9 core modules
+    \item Extensible architecture supporting 19 specialized modules
 \end{itemize}
 
-The platform's integration of graph databases, vector search, and AI capabilities provides a foundation for advanced system understanding and automation. Empirical performance evaluations demonstrate the system's efficiency and scalability.
+The platform's current implementation provides a solid foundation for system monitoring, network analysis, and vector-based semantic search. The SQLite-based vector store, while functional, is planned for migration to Qdrant for production-scale deployments. Empirical performance evaluations demonstrate the system's efficiency and scalability within current implementation constraints.
 
-Future work will focus on distributed monitoring capabilities, advanced AI integration, and performance optimizations through GPU acceleration and WebAssembly.
+Future work will focus on completing the 5 pending modules (AI Consciousness, DevOps Control, Automation Circuit, Reality \& Timeline Studio, Create Hub), migrating vector storage to Qdrant for improved performance, implementing backend support for modules currently using mock data, and performance optimizations through GPU acceleration and WebAssembly.
 
 \section*{Acknowledgments}
 

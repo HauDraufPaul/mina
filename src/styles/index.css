@@ -8,11 +8,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-gray-800/50;
   }
   
   body {
-    @apply bg-background text-foreground font-mono;
+    @apply bg-gray-950 text-gray-100 font-mono;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

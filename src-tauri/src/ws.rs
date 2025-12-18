@@ -40,9 +40,12 @@ impl WsServer {
         *self.system_metrics_tx.lock().unwrap() = Some(tx.clone());
 
         let connections = self.connections.clone();
-        let mut interval = interval(Duration::from_secs(1));
+        let app_handle = app.clone();
 
-        tokio::spawn(async move {
+        // Use Tauri's async runtime to spawn the task
+        tauri::async_runtime::spawn(async move {
+            let mut interval = interval(Duration::from_secs(1));
+            
             loop {
                 interval.tick().await;
 

@@ -213,7 +213,7 @@ impl Database {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorRecord {
     pub id: i64,
     pub error_type: String,

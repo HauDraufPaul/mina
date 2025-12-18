@@ -11,7 +11,7 @@ use storage::Database;
 use providers::{SystemProvider, NetworkProvider, ProcessProvider, HomebrewProvider};
 use ws::WsServer;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
@@ -19,14 +19,14 @@ pub struct SystemMetrics {
     pub network: NetworkMetrics,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuMetrics {
     pub usage: f64,
     pub cores: usize,
     pub frequency: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryMetrics {
     pub total: u64,
     pub used: u64,
@@ -34,7 +34,7 @@ pub struct MemoryMetrics {
     pub usage: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskMetrics {
     pub total: u64,
     pub used: u64,
@@ -42,7 +42,7 @@ pub struct DiskMetrics {
     pub usage: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkMetrics {
     pub rx: u64,
     pub tx: u64,
@@ -54,11 +54,9 @@ pub struct NetworkMetrics {
 
 
 #[tauri::command]
-fn get_recent_errors(limit: i32, app: tauri::AppHandle) -> Result<Vec<storage::ErrorRecord>, String> {
-    let db = app.try_state::<Mutex<Database>>()
-        .ok_or("Database not found")?;
-    let db = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    db.get_recent_errors(limit)
+fn get_recent_errors(limit: i32, db: tauri::State<'_, Mutex<Database>>) -> Result<Vec<storage::ErrorRecord>, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    db_guard.get_recent_errors(limit)
         .map_err(|e| format!("Failed to get errors: {}", e))
 }
 
@@ -69,12 +67,10 @@ fn save_error(
     stack_trace: Option<String>,
     source: Option<String>,
     severity: String,
-    app: tauri::AppHandle,
+    db: tauri::State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
-    let db = app.try_state::<Mutex<Database>>()
-        .ok_or("Database not found")?;
-    let db = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    db.save_error(
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    db_guard.save_error(
         &error_type,
         &message,
         stack_trace.as_deref(),

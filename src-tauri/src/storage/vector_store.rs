@@ -137,14 +137,16 @@ impl VectorStore {
         let now = chrono::Utc::now().timestamp();
         let rows = stmt.query_map(params![collection, now, limit * 10], |row| {
             let embedding_json: String = row.get(3)?;
-            let embedding: Vec<f32> = serde_json::from_str(&embedding_json)?;
+            let embedding: Vec<f32> = serde_json::from_str(&embedding_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(3, "TEXT".to_string(), rusqlite::types::Type::Text))?;
 
             Ok(VectorDocument {
                 id: row.get(0)?,
                 collection: row.get(1)?,
                 content: row.get(2)?,
                 embedding,
-                metadata: serde_json::from_str(&row.get::<_, String>(4)?)?,
+                metadata: serde_json::from_str(&row.get::<_, String>(4)?)
+                    .map_err(|e| rusqlite::Error::InvalidColumnType(4, "TEXT".to_string(), rusqlite::types::Type::Text))?,
                 created_at: row.get(5)?,
                 expires_at: row.get(6)?,
             })

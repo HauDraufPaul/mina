@@ -110,14 +110,17 @@ impl AuthManager {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().timestamp();
         
-        let count: i64 = conn
+        let count: i64 = match conn
             .query_row(
                 "SELECT COUNT(*) FROM auth_sessions WHERE id = ?1 AND expires_at > ?2",
                 params![session_id, now],
                 |row| row.get(0),
             )
-            .optional()?
-            .unwrap_or(0);
+            .optional() {
+            Ok(Some(val)) => val,
+            Ok(None) => 0,
+            Err(_) => 0,
+        };
         
         let exists = count > 0;
         
@@ -187,15 +190,18 @@ impl AuthManager {
     pub fn check_permission(&self, user_id: &str, resource: &str, action: &str) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         
-        let count: i64 = conn
+        let count: i64 = match conn
             .query_row(
                 "SELECT COUNT(*) FROM permissions 
                  WHERE user_id = ?1 AND resource = ?2 AND action = ?3 AND granted = 1",
                 params![user_id, resource, action],
                 |row| row.get(0),
             )
-            .optional()?
-            .unwrap_or(0);
+            .optional() {
+            Ok(Some(val)) => val,
+            Ok(None) => 0,
+            Err(_) => 0,
+        };
         
         let granted = count > 0;
         
