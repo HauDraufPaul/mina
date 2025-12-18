@@ -26,4 +26,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
 async-trait = "0.1"
+sha2 = "0.10"
 

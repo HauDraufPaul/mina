@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import { Activity, Cpu, HardDrive, Wifi, MemoryStick } from "lucide-react";
+import ProcessList from "./ProcessList";
 
 interface SystemMetrics {
   cpu: {
@@ -142,6 +143,8 @@ export default function SystemMonitorHub() {
           </div>
         </Card>
       </div>
+
+      <ProcessList />
     </div>
   );
 }
