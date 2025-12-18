@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('./tokens.css');
+@import url('./glass.css');
+@import url('./terminal-effects.css');
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-mono;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
