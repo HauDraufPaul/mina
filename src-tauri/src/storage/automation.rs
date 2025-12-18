@@ -41,14 +41,16 @@ pub struct AutomationStore {
 }
 
 impl AutomationStore {
-    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Result<Self> {
         let store = AutomationStore { conn };
-        store.init_schema().unwrap();
-        store
+        store.init_schema()
+            .map_err(|e| anyhow::anyhow!("Failed to initialize Automation store schema: {}", e))?;
+        Ok(store)
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS scripts (
@@ -99,7 +101,8 @@ impl AutomationStore {
     }
 
     pub fn create_script(&self, name: &str, content: &str, language: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -112,7 +115,8 @@ impl AutomationStore {
     }
 
     pub fn list_scripts(&self) -> Result<Vec<Script>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, content, language, created_at, updated_at, enabled FROM scripts ORDER BY name"
         )?;
@@ -137,7 +141,8 @@ impl AutomationStore {
     }
 
     pub fn get_script(&self, id: i64) -> Result<Option<Script>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let script: Option<Script> = conn
             .query_row(
@@ -168,7 +173,8 @@ impl AutomationStore {
         trigger_config: &str,
         steps: &str,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -181,7 +187,8 @@ impl AutomationStore {
     }
 
     pub fn list_workflows(&self) -> Result<Vec<Workflow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, trigger_type, trigger_config, steps, created_at, enabled
              FROM workflows ORDER BY name"
@@ -213,7 +220,8 @@ impl AutomationStore {
         status: &str,
         error: Option<&str>,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         let completed_at = if status == "completed" || status == "failed" {
@@ -232,7 +240,8 @@ impl AutomationStore {
     }
 
     pub fn get_executions(&self, workflow_id: Option<i64>, limit: i32) -> Result<Vec<WorkflowExecution>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut executions = Vec::new();
         
         if let Some(wf_id) = workflow_id {

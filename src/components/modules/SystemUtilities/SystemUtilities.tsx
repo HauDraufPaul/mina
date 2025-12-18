@@ -35,11 +35,13 @@ export default function SystemUtilities() {
         invoke<DiskInfo>("get_disk_info"),
         invoke<SystemInfo>("get_system_info"),
       ]);
+      console.log("System utilities data loaded:", { disk, system });
       setDiskInfo(disk);
       setSystemInfo(system);
       setLoading(false);
     } catch (error) {
       console.error("Failed to load system data:", error);
+      alert(`Failed to load system data: ${error}`);
       setLoading(false);
     }
   };

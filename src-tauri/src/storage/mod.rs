@@ -11,6 +11,7 @@ pub mod devops;
 pub mod osint;
 pub mod testing;
 pub mod projects;
+pub mod seed_data;
 
 pub use database::{Database, ErrorRecord};
 pub use migrations::MigrationManager;

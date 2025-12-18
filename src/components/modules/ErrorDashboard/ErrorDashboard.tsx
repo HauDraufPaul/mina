@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
-import { AlertTriangle, X, CheckCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle } from "lucide-react";
 
 interface ErrorRecord {
   id: number;

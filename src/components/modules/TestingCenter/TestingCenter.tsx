@@ -48,13 +48,16 @@ export default function TestingCenter() {
   const loadSuites = async () => {
     try {
       const suites = await invoke<TestSuite[]>("list_test_suites");
-      setTestSuites(suites);
-      if (suites.length > 0 && selectedSuite === null) {
+      console.log("Test suites loaded:", suites);
+      setTestSuites(suites || []);
+      if (suites && suites.length > 0 && selectedSuite === null) {
         setSelectedSuite(suites[0].id);
       }
       setLoading(false);
     } catch (error) {
       console.error("Failed to load test suites:", error);
+      alert(`Failed to load test suites: ${error}`);
+      setTestSuites([]);
       setLoading(false);
     }
   };
@@ -65,10 +68,13 @@ export default function TestingCenter() {
         invoke<TestResult[]>("get_suite_results", { suiteId }),
         invoke<TestSuiteStats>("get_suite_stats", { suiteId }),
       ]);
-      setSuiteResults({ ...suiteResults, [suiteId]: results });
-      setSuiteStats({ ...suiteStats, [suiteId]: stats });
+      console.log(`Suite ${suiteId} data loaded:`, { results, stats });
+      setSuiteResults({ ...suiteResults, [suiteId]: results || [] });
+      setSuiteStats({ ...suiteStats, [suiteId]: stats || { total: 0, passed: 0, failed: 0, duration: 0 } });
     } catch (error) {
       console.error("Failed to load suite data:", error);
+      setSuiteResults({ ...suiteResults, [suiteId]: [] });
+      setSuiteStats({ ...suiteStats, [suiteId]: { total: 0, passed: 0, failed: 0, duration: 0 } });
     }
   };
 
@@ -85,9 +91,6 @@ export default function TestingCenter() {
     }
   };
 
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString();
-  };
 
   const totalTests = Object.values(suiteStats).reduce((sum, stats) => sum + stats.total, 0);
   const totalPassed = Object.values(suiteStats).reduce((sum, stats) => sum + stats.passed, 0);

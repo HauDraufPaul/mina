@@ -5,7 +5,7 @@ use tauri::State;
 
 #[tauri::command]
 pub fn get_system_metrics(provider: State<'_, Mutex<SystemProvider>>) -> Result<SystemMetrics, String> {
-    let mut provider_guard = provider.lock().map_err(|e| format!("Provider lock error: {}", e))?;
+    let provider_guard = provider.lock().map_err(|e| format!("Provider lock error: {}", e))?;
     provider_guard.refresh();
     
     // CPU Metrics

@@ -31,10 +31,13 @@ export default function RateLimitMonitor() {
   const loadBuckets = async () => {
     try {
       const data = await invoke<RateLimitBucket[]>("list_rate_limit_buckets");
-      setBuckets(data);
+      console.log("Rate limit buckets loaded:", data);
+      setBuckets(data || []);
       setLoading(false);
     } catch (error) {
       console.error("Failed to load rate limit buckets:", error);
+      alert(`Failed to load rate limit buckets: ${error}`);
+      setBuckets([]);
       setLoading(false);
     }
   };

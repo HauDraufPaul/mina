@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
 use sysinfo::System;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub struct SystemProvider {
     system: Arc<Mutex<System>>,

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use rusqlite::{Connection, params, OptionalExtension};
 use sha2::{Sha256, Digest};
 use std::sync::{Arc, Mutex};

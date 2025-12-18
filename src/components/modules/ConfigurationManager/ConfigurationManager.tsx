@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
-import { Save, RefreshCw, Settings } from "lucide-react";
+import { Save, RefreshCw } from "lucide-react";
 
 interface ConfigEntry {
   key: string;

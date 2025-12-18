@@ -1,15 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::Manager;
+use anyhow::Context;
 
 mod storage;
 mod providers;
 mod commands;
 mod ws;
+mod utils;
 
 use storage::Database;
-use providers::{SystemProvider, NetworkProvider, ProcessProvider, HomebrewProvider, SystemUtilsProvider};
+use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, ProjectStore, MigrationTracker};
+use providers::{SystemProvider, NetworkProvider, ProcessProvider, HomebrewProvider, SystemUtilsProvider, OllamaProvider};
 use ws::WsServer;
+use std::path::PathBuf;
+use tokio::sync::RwLock;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
@@ -92,6 +98,26 @@ pub fn run() {
                     e
                 })?;
             
+            // Initialize all store schemas by creating instances
+            // This ensures all tables are created
+            let _ = RateLimitStore::new(db.conn.clone());
+            let _ = TestingStore::new(db.conn.clone());
+            let _ = AnalyticsStore::new(db.conn.clone());
+            let _ = VectorStore::new(db.conn.clone());
+            let _ = AIStore::new(db.conn.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to initialize AIStore: {}", e))?;
+            let _ = AutomationStore::new(db.conn.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to initialize AutomationStore: {}", e))?;
+            let _ = DevOpsStore::new(db.conn.clone());
+            let _ = OSINTStore::new(db.conn.clone());
+            let _ = ProjectStore::new(db.conn.clone());
+            let _ = MigrationTracker::new(db.conn.clone());
+            
+            // Seed initial data
+            if let Err(e) = storage::seed_data::seed_initial_data(&db.conn) {
+                eprintln!("Warning: Failed to seed initial data: {}", e);
+            }
+            
             app.manage(Mutex::new(db));
             
             // Initialize providers
@@ -100,6 +126,21 @@ pub fn run() {
             app.manage(Mutex::new(ProcessProvider::new()));
             app.manage(Mutex::new(HomebrewProvider::new()));
             app.manage(Mutex::new(SystemUtilsProvider::new()));
+            
+            // Initialize Ollama provider
+            let app_data_dir = app.path().app_data_dir()
+                .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?;
+            let models_folder = app_data_dir.join("models");
+            std::fs::create_dir_all(&models_folder)
+                .map_err(|e| anyhow::anyhow!("Failed to create models folder: {}", e))?;
+            
+            let ollama_provider = OllamaProvider::new(models_folder);
+            let ollama_state = Arc::new(RwLock::new(ollama_provider));
+            
+            // Note: Folder watcher can be started later via a command if needed
+            // Starting it here causes runtime issues since setup() runs before the async runtime is ready
+            
+            app.manage(ollama_state);
             
             // Initialize WebSocket server
             let ws_server = WsServer::new();
@@ -152,6 +193,7 @@ pub fn run() {
             commands::system_utils::get_system_info,
             commands::system_utils::prevent_sleep,
             commands::vector_search::search_vectors,
+            commands::embeddings::generate_embedding,
             commands::ai::create_conversation,
             commands::ai::list_conversations,
             commands::ai::add_chat_message,
@@ -191,6 +233,13 @@ pub fn run() {
             commands::projects::list_projects,
             commands::projects::get_project,
             commands::projects::delete_project,
+            commands::ollama::check_ollama_status,
+            commands::ollama::list_ollama_models,
+            commands::ollama::get_ollama_model_info,
+            commands::ollama::load_model_from_file,
+            commands::ollama::chat_with_ollama,
+            commands::ollama::scan_models_folder,
+            commands::ollama::get_models_folder_path,
             get_recent_errors,
             save_error
         ])

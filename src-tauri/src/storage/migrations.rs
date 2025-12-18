@@ -1,6 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use rusqlite::Connection;
-use std::collections::HashMap;
 
 pub struct MigrationManager {
     migrations: Vec<Migration>,

@@ -43,25 +43,30 @@ export default function VectorSearch() {
 
   const handleSearch = async () => {
     if (!query.trim()) {
+      // TODO: Replace with proper error UI component
       alert("Please enter a search query");
       return;
     }
 
     if (filters.collection === "all") {
+      // TODO: Replace with proper error UI component
       alert("Please select a collection");
+      return;
+    }
+
+    // Validate query length
+    if (query.length > 1000) {
+      alert("Search query is too long (max 1000 characters)");
       return;
     }
 
     setLoading(true);
     try {
-      // For now, we'll use a simple text-based approach
-      // In production, you'd generate embeddings from the query
-      // For demonstration, we'll create a dummy embedding vector
-      // The backend will handle the actual similarity search
-      
-      // Create a simple embedding vector (384 dimensions, all zeros for now)
-      // In a real implementation, you'd use an embedding model here
-      const queryEmbedding = new Array(384).fill(0).map(() => Math.random() * 0.1);
+      // Generate embedding from query text
+      const queryEmbedding = await invoke<number[]>("generate_embedding", {
+        text: query,
+        dimension: 384,
+      });
 
       const searchResults = await invoke<SearchResult[]>("search_vectors", {
         collection: filters.collection,
@@ -73,7 +78,9 @@ export default function VectorSearch() {
       setResults(searchResults);
     } catch (error) {
       console.error("Search failed:", error);
+      // TODO: Replace with proper error UI component
       alert(`Search failed: ${error}`);
+      setResults([]); // Clear results on error
     } finally {
       setLoading(false);
     }
@@ -178,9 +185,6 @@ export default function VectorSearch() {
               <div className="text-center py-8 text-gray-400">
                 <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
                 <p>Enter a query and click Search to find similar content</p>
-                <p className="text-xs mt-2 text-gray-500">
-                  Note: Embedding generation is simplified. In production, use a proper embedding model.
-                </p>
               </div>
             </Card>
           ) : (

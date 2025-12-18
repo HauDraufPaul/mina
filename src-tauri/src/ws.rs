@@ -40,7 +40,7 @@ impl WsServer {
         *self.system_metrics_tx.lock().unwrap() = Some(tx.clone());
 
         let connections = self.connections.clone();
-        let app_handle = app.clone();
+        let _app_handle = app.clone();
 
         // Use Tauri's async runtime to spawn the task
         tauri::async_runtime::spawn(async move {

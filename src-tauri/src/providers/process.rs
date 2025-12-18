@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sysinfo::{System, Pid, Process};
+use sysinfo::{System, Pid};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProcessInfo {

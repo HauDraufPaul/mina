@@ -8,7 +8,7 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(app_handle: &AppHandle) -> Result<Self> {
+    pub fn new(_app_handle: &AppHandle) -> Result<Self> {
         // Get app data directory - using standard paths
         let app_data_dir = if cfg!(target_os = "macos") {
             std::env::var("HOME")
@@ -40,7 +40,8 @@ impl Database {
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         // System metrics history
         conn.execute(
@@ -138,7 +139,8 @@ impl Database {
         network_rx: u64,
         network_tx: u64,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "INSERT INTO system_metrics (timestamp, cpu_usage, memory_usage, disk_usage, network_rx, network_tx)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -148,7 +150,8 @@ impl Database {
     }
 
     pub fn get_config(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare("SELECT value FROM config WHERE key = ?1")?;
         let value = stmt.query_row(params![key], |row| row.get::<_, String>(0))
             .optional()?;
@@ -156,7 +159,8 @@ impl Database {
     }
 
     pub fn set_config(&self, key: &str, value: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?1, ?2, ?3)",
@@ -173,7 +177,8 @@ impl Database {
         source: Option<&str>,
         severity: &str,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT INTO errors (error_type, message, stack_trace, source, severity, created_at)
@@ -184,7 +189,8 @@ impl Database {
     }
 
     pub fn get_recent_errors(&self, limit: i32) -> Result<Vec<ErrorRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, error_type, message, stack_trace, source, severity, created_at, resolved_at
              FROM errors

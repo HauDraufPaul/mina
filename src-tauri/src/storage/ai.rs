@@ -37,14 +37,16 @@ pub struct AIStore {
 }
 
 impl AIStore {
-    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Result<Self> {
         let store = AIStore { conn };
-        store.init_schema().unwrap();
-        store
+        store.init_schema()
+            .context("Failed to initialize AI store schema")?;
+        Ok(store)
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS conversations (
@@ -91,7 +93,8 @@ impl AIStore {
     }
 
     pub fn create_conversation(&self, id: &str, title: &str, model: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -104,7 +107,8 @@ impl AIStore {
     }
 
     pub fn list_conversations(&self) -> Result<Vec<Conversation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, title, created_at, updated_at, model FROM conversations ORDER BY updated_at DESC"
         )?;
@@ -134,7 +138,8 @@ impl AIStore {
         model: Option<&str>,
         tokens: Option<i32>,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -153,7 +158,8 @@ impl AIStore {
     }
 
     pub fn get_messages(&self, conversation_id: &str) -> Result<Vec<ChatMessage>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, conversation_id, role, content, timestamp, model, tokens
              FROM chat_messages
@@ -181,7 +187,8 @@ impl AIStore {
     }
 
     pub fn create_template(&self, name: &str, template: &str, description: Option<&str>) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -194,7 +201,8 @@ impl AIStore {
     }
 
     pub fn list_templates(&self) -> Result<Vec<PromptTemplate>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, template, description, created_at FROM prompt_templates ORDER BY name"
         )?;
@@ -217,7 +225,8 @@ impl AIStore {
     }
 
     pub fn get_template(&self, name: &str) -> Result<Option<PromptTemplate>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let template: Option<PromptTemplate> = conn
             .query_row(

@@ -11,30 +11,14 @@ pub mod rate_limit;
 pub mod migration;
 pub mod system_utils;
 pub mod vector_search;
+pub mod embeddings;
 pub mod ai;
 pub mod automation;
 pub mod devops;
 pub mod osint;
 pub mod testing;
 pub mod projects;
+pub mod ollama;
 
-pub use system::*;
-pub use network::*;
-pub use process::*;
-pub use config::*;
-pub use ws::*;
-pub use auth::*;
-pub use packages::*;
-pub use vector_store::*;
-pub use analytics::*;
-pub use rate_limit::*;
-pub use migration::*;
-pub use system_utils::*;
-pub use vector_search::*;
-pub use ai::*;
-pub use automation::*;
-pub use devops::*;
-pub use osint::*;
-pub use testing::*;
-pub use projects::*;
+// Re-exports are not needed - commands are registered directly in lib.rs
 

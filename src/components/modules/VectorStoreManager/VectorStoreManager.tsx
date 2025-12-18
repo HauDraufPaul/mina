@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
-import { Database, Plus, Trash2, RefreshCw, BarChart3 } from "lucide-react";
+import { Database, Plus, Trash2, RefreshCw } from "lucide-react";
 
 interface CollectionStats {
   total: number;

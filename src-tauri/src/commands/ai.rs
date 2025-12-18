@@ -11,7 +11,8 @@ pub fn create_conversation(
     db: State<'_, Mutex<Database>>,
 ) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.create_conversation(&id, &title, model.as_deref())
         .map_err(|e| format!("Failed to create conversation: {}", e))
 }
@@ -21,7 +22,8 @@ pub fn list_conversations(
     db: State<'_, Mutex<Database>>,
 ) -> Result<Vec<crate::storage::ai::Conversation>, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.list_conversations()
         .map_err(|e| format!("Failed to list conversations: {}", e))
 }
@@ -36,7 +38,8 @@ pub fn add_chat_message(
     db: State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.add_message(&conversation_id, &role, &content, model.as_deref(), tokens)
         .map_err(|e| format!("Failed to add message: {}", e))
 }
@@ -47,7 +50,8 @@ pub fn get_chat_messages(
     db: State<'_, Mutex<Database>>,
 ) -> Result<Vec<crate::storage::ai::ChatMessage>, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.get_messages(&conversation_id)
         .map_err(|e| format!("Failed to get messages: {}", e))
 }
@@ -60,7 +64,8 @@ pub fn create_prompt_template(
     db: State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.create_template(&name, &template, description.as_deref())
         .map_err(|e| format!("Failed to create template: {}", e))
 }
@@ -70,7 +75,8 @@ pub fn list_prompt_templates(
     db: State<'_, Mutex<Database>>,
 ) -> Result<Vec<crate::storage::ai::PromptTemplate>, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.list_templates()
         .map_err(|e| format!("Failed to list templates: {}", e))
 }
@@ -81,7 +87,8 @@ pub fn get_prompt_template(
     db: State<'_, Mutex<Database>>,
 ) -> Result<Option<crate::storage::ai::PromptTemplate>, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = AIStore::new(db_guard.conn.clone());
+    let store = AIStore::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize AIStore: {}", e))?;
     store.get_template(&name)
         .map_err(|e| format!("Failed to get template: {}", e))
 }
