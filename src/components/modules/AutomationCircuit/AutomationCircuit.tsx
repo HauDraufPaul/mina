@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import Tabs from "../../ui/Tabs";
 import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { Code, Play, Save, List, Workflow, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
 
@@ -144,29 +145,27 @@ export default function AutomationCircuit() {
           </h1>
           <p className="text-gray-400">Script and workflow automation</p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant={view === "scripts" ? "primary" : "secondary"}
-            onClick={() => setView("scripts")}
-          >
-            <Code className="w-4 h-4 mr-2" />
-            Scripts
-          </Button>
-          <Button
-            variant={view === "workflows" ? "primary" : "secondary"}
-            onClick={() => setView("workflows")}
-          >
-            <Workflow className="w-4 h-4 mr-2" />
-            Workflows
-          </Button>
-          <Button
-            variant={view === "executions" ? "primary" : "secondary"}
-            onClick={() => setView("executions")}
-          >
-            <List className="w-4 h-4 mr-2" />
-            Executions
-          </Button>
-        </div>
+        <Tabs
+          items={[
+            {
+              id: "scripts",
+              label: "Scripts",
+              icon: <Code className="w-4 h-4" />,
+            },
+            {
+              id: "workflows",
+              label: "Workflows",
+              icon: <Workflow className="w-4 h-4" />,
+            },
+            {
+              id: "executions",
+              label: "Executions",
+              icon: <List className="w-4 h-4" />,
+            },
+          ]}
+          activeTab={view}
+          onTabChange={(tabId) => setView(tabId as "scripts" | "workflows" | "executions")}
+        />
       </div>
 
       {view === "scripts" && (

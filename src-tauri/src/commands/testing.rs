@@ -34,10 +34,47 @@ pub fn save_test_result(
     error: Option<String>,
     db: State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
+    // Get database connection for store
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = TestingStore::new(db_guard.conn.clone());
-    store.save_test_result(suite_id, &name, &status, duration, error.as_deref())
-        .map_err(|e| format!("Failed to save test result: {}", e))
+    let conn = db_guard.conn.clone();
+    drop(db_guard); // Release lock early
+    
+    let store = TestingStore::new(conn);
+    
+    // Get suite name if we need to log an error
+    let suite_name = if status.to_lowercase() == "failed" && error.is_some() {
+        store.get_suite_name(suite_id)
+            .map_err(|e| format!("Failed to get suite name: {}", e))?
+            .unwrap_or_else(|| format!("Suite #{}", suite_id))
+    } else {
+        String::new()
+    };
+    
+    // Save test result
+    let result_id = store.save_test_result(suite_id, &name, &status, duration, error.as_deref())
+        .map_err(|e| format!("Failed to save test result: {}", e))?;
+    
+    // If test failed, also log it to the error dashboard
+    if status.to_lowercase() == "failed" && error.is_some() {
+        let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+        let error_message = format!("Test '{}' failed in suite '{}'", name, suite_name);
+        let error_type = "Test Failure";
+        let source = Some(format!("TestingCenter:{}", suite_name));
+        
+        // Log to error dashboard
+        if let Err(e) = db_guard.save_error(
+            error_type,
+            &error_message,
+            error.as_deref(),
+            source.as_deref(),
+            "error",
+        ) {
+            // Don't fail the whole operation if error logging fails, just log it
+            eprintln!("Warning: Failed to log test failure to error dashboard: {}", e);
+        }
+    }
+    
+    Ok(result_id)
 }
 
 #[tauri::command]

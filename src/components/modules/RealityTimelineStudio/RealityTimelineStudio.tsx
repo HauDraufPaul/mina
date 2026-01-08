@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import Tabs from "../../ui/Tabs";
 import Modal from "../../ui/Modal";
 import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { 
@@ -564,30 +565,23 @@ ${selectedArticle.content}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveTab("sources")}
-          className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-            activeTab === "sources"
-              ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan"
-              : "bg-white/5 text-gray-400 hover:bg-white/10"
-          }`}
-        >
-          <Settings className="w-4 h-4 inline mr-2" />
-          Sources
-        </button>
-        <button
-          onClick={() => setActiveTab("reader")}
-          className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-            activeTab === "reader"
-              ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan"
-              : "bg-white/5 text-gray-400 hover:bg-white/10"
-          }`}
-        >
-          <BookOpen className="w-4 h-4 inline mr-2" />
-          Reader
-        </button>
-      </div>
+      <Tabs
+        items={[
+          {
+            id: "sources",
+            label: "Sources",
+            icon: <Settings className="w-4 h-4" />,
+          },
+          {
+            id: "reader",
+            label: "Reader",
+            icon: <BookOpen className="w-4 h-4" />,
+          },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as Tab)}
+        className="mb-6"
+      />
 
       {/* Sources Tab */}
       {activeTab === "sources" && (

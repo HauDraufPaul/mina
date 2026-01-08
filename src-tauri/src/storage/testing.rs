@@ -163,6 +163,18 @@ impl TestingStore {
         Ok(results)
     }
 
+    pub fn get_suite_name(&self, suite_id: i64) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let name: Option<String> = conn
+            .query_row(
+                "SELECT name FROM test_suites WHERE id = ?1",
+                params![suite_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(name)
+    }
+
     pub fn get_suite_stats(&self, suite_id: i64) -> Result<TestSuiteStats> {
         let conn = self.conn.lock().unwrap();
         
