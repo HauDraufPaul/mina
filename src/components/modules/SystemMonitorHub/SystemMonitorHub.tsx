@@ -1,9 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Cpu, HardDrive, Wifi, MemoryStick, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Pause, Play } from "lucide-react";
 import ProcessList from "./ProcessList";
+import { useRealtimeData } from "../../../hooks/useRealtimeData";
+import { SystemMetrics as RealtimeSystemMetrics } from "../../../services/realtimeService";
 
 interface SystemMetrics {
   cpu: {
@@ -35,9 +37,6 @@ interface SystemMetrics {
 const MAX_HISTORY = 60;
 
 export default function SystemMonitorHub() {
-  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   
   // History for sparklines
@@ -46,45 +45,40 @@ export default function SystemMonitorHub() {
   const [diskHistory, setDiskHistory] = useState<number[]>([]);
   const [networkRxHistory, setNetworkRxHistory] = useState<number[]>([]);
   const [networkTxHistory, setNetworkTxHistory] = useState<number[]>([]);
-  
-  const intervalRef = useRef<number | null>(null);
 
-  const fetchMetrics = async () => {
+  // Use realtime data hook
+  const { data: metrics, loading, error, isConnected } = useRealtimeData<SystemMetrics>(
+    "system-metrics",
+    {
+      enabled: !isPaused,
+      fallbackPolling: true,
+      pollingInterval: 1000,
+      fetchInitialData: async () => {
+        return await invoke<SystemMetrics>("get_system_metrics");
+      },
+      onUpdate: (data) => {
+        // Update history for sparklines
+        setCpuHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.cpu.usage]);
+        setMemoryHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.memory.usage]);
+        setDiskHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.disk.usage]);
+        setNetworkRxHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.network.rxSpeed]);
+        setNetworkTxHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.network.txSpeed]);
+      },
+    }
+  );
+
+  const handleRefresh = async () => {
     try {
       const data = await invoke<SystemMetrics>("get_system_metrics");
-      setMetrics(data);
-      setError(null);
-      setLoading(false);
-      
-      // Update history for sparklines
+      // Update history
       setCpuHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.cpu.usage]);
       setMemoryHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.memory.usage]);
       setDiskHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.disk.usage]);
       setNetworkRxHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.network.rxSpeed]);
       setNetworkTxHistory(prev => [...prev.slice(-MAX_HISTORY + 1), data.network.txSpeed]);
     } catch (err) {
-      console.error("Failed to fetch metrics:", err);
-      setError(err instanceof Error ? err.message : "Failed to load metrics");
-      setLoading(false);
+      console.error("Failed to refresh metrics:", err);
     }
-  };
-
-  useEffect(() => {
-    fetchMetrics();
-    
-    if (!isPaused) {
-      intervalRef.current = window.setInterval(fetchMetrics, 1000);
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isPaused]);
-
-  const handleRefresh = () => {
-    fetchMetrics();
   };
 
   const togglePause = () => {
@@ -278,7 +272,7 @@ export default function SystemMonitorHub() {
           <div className="text-center">
             <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-neon-red" />
             <h3 className="text-lg font-semibold mb-2">Failed to Load Metrics</h3>
-            <p className="text-sm text-gray-400 mb-4">{error}</p>
+            <p className="text-sm text-gray-400 mb-4">{error instanceof Error ? error.message : String(error)}</p>
             <Button onClick={handleRefresh} variant="primary">
               <RefreshCw className="w-4 h-4 mr-2" />
               Retry
@@ -300,6 +294,12 @@ export default function SystemMonitorHub() {
             System Monitor Hub
           </h1>
           <p className="text-gray-400">Real-time system performance monitoring</p>
+          {isConnected && (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
+              <span className="text-xs text-gray-500">Live</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button

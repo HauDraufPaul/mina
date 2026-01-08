@@ -46,3 +46,20 @@ out
 .DS_Store
 Thumbs.db
 
+# Instructions and documentation (no AI stuff on GitHub)
+*.md
+
+# LaTeX files
+LaTeX/
+*.tex
+*.pdf
+
+# AI-related files
+*AI*
+*ai*
+*INSTRUCTIONS*
+*instructions*
+*PLAN*
+*plan*
+*CURSOR*
+*cursor*

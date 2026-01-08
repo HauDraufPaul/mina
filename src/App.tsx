@@ -22,6 +22,7 @@ import ErrorDashboard from "./components/modules/ErrorDashboard/ErrorDashboard";
 import RateLimitMonitor from "./components/modules/RateLimitMonitor/RateLimitMonitor";
 import VectorSearch from "./components/modules/VectorSearch/VectorSearch";
 import AdvancedAnalytics from "./components/modules/AdvancedAnalytics/AdvancedAnalytics";
+import GridLayoutView from "./components/GridLayout/GridLayoutView";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +60,7 @@ function App() {
             <Route path="/rate-limit" element={<RateLimitMonitor />} />
             <Route path="/vector-search" element={<VectorSearch />} />
             <Route path="/analytics" element={<AdvancedAnalytics />} />
+            <Route path="/grid" element={<GridLayoutView />} />
           </Routes>
         </Layout>
       </BrowserRouter>
