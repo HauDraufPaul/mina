@@ -6,7 +6,8 @@ use tauri::State;
 #[tauri::command]
 pub fn set_pin(user_id: String, pin: String, db: State<'_, Mutex<Database>>) -> Result<(), String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     auth.set_pin(&user_id, &pin)
         .map_err(|e| format!("Failed to set PIN: {}", e))
 }
@@ -14,7 +15,8 @@ pub fn set_pin(user_id: String, pin: String, db: State<'_, Mutex<Database>>) -> 
 #[tauri::command]
 pub fn verify_pin(user_id: String, pin: String, db: State<'_, Mutex<Database>>) -> Result<bool, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     let valid = auth.verify_pin(&user_id, &pin)
         .map_err(|e| format!("Failed to verify PIN: {}", e))?;
     
@@ -27,7 +29,8 @@ pub fn verify_pin(user_id: String, pin: String, db: State<'_, Mutex<Database>>) 
 #[tauri::command]
 pub fn create_session(user_id: String, db: State<'_, Mutex<Database>>) -> Result<String, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     auth.create_session(&user_id)
         .map_err(|e| format!("Failed to create session: {}", e))
 }
@@ -35,7 +38,8 @@ pub fn create_session(user_id: String, db: State<'_, Mutex<Database>>) -> Result
 #[tauri::command]
 pub fn validate_session(session_id: String, db: State<'_, Mutex<Database>>) -> Result<bool, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     auth.validate_session(&session_id)
         .map_err(|e| format!("Failed to validate session: {}", e))
 }
@@ -43,7 +47,8 @@ pub fn validate_session(session_id: String, db: State<'_, Mutex<Database>>) -> R
 #[tauri::command]
 pub fn get_auth_attempts(limit: i32, db: State<'_, Mutex<Database>>) -> Result<Vec<crate::storage::auth::AuthAttempt>, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     auth.get_recent_attempts(limit)
         .map_err(|e| format!("Failed to get auth attempts: {}", e))
 }
@@ -56,7 +61,8 @@ pub fn check_permission(
     db: State<'_, Mutex<Database>>,
 ) -> Result<bool, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let auth = AuthManager::new(db_guard.conn.clone());
+    let auth = AuthManager::new(db_guard.conn.clone())
+        .map_err(|e| format!("Failed to initialize auth manager: {}", e))?;
     auth.check_permission(&user_id, &resource, &action)
         .map_err(|e| format!("Failed to check permission: {}", e))
 }

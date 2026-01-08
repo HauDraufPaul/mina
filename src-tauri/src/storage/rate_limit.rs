@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rusqlite::{Connection, params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -19,14 +19,16 @@ pub struct RateLimitStore {
 }
 
 impl RateLimitStore {
-    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Result<Self> {
         let store = RateLimitStore { conn };
-        store.init_schema().unwrap();
-        store
+        store.init_schema()
+            .context("Failed to initialize rate limit schema")?;
+        Ok(store)
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS rate_limit_buckets (
@@ -50,10 +52,11 @@ impl RateLimitStore {
         refill_rate: i64,
         refill_interval: i64,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .context("System time before UNIX epoch")?
             .as_secs() as i64;
 
         conn.execute(
@@ -67,7 +70,8 @@ impl RateLimitStore {
     }
 
     pub fn get_bucket(&self, name: &str) -> Result<Option<RateLimitBucket>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let bucket: Option<RateLimitBucket> = conn
             .query_row(
@@ -91,7 +95,8 @@ impl RateLimitStore {
     }
 
     pub fn list_buckets(&self) -> Result<Vec<RateLimitBucket>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT name, capacity, tokens, refill_rate, refill_interval, last_refill
              FROM rate_limit_buckets"
@@ -116,10 +121,11 @@ impl RateLimitStore {
     }
 
     pub fn consume_token(&self, name: &str, amount: i64) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .context("System time before UNIX epoch")?
             .as_secs() as i64;
 
         // Get bucket and refill if needed
@@ -177,10 +183,11 @@ impl RateLimitStore {
     }
 
     pub fn refill_bucket(&self, name: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .context("System time before UNIX epoch")?
             .as_secs() as i64;
 
         let bucket: Option<RateLimitBucket> = conn

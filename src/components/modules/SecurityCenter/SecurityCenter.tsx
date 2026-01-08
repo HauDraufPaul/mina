@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { Shield, Lock, Key, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
 interface AuthAttempt {
@@ -13,6 +14,7 @@ interface AuthAttempt {
 }
 
 export default function SecurityCenter() {
+  const errorHandler = useErrorHandler();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -38,7 +40,7 @@ export default function SecurityCenter() {
           localStorage.removeItem("mina_session_id");
         }
       } catch (error) {
-        console.error("Session validation failed:", error);
+        errorHandler.showError("Session validation failed", error);
       }
     }
   };
@@ -48,36 +50,34 @@ export default function SecurityCenter() {
       const attempts = await invoke<AuthAttempt[]>("get_auth_attempts", { limit: 20 });
       setAuthAttempts(attempts);
     } catch (error) {
-      console.error("Failed to load auth attempts:", error);
+      errorHandler.showError("Failed to load auth attempts", error);
     }
   };
 
   const handleSetPin = async () => {
-    if (pin.length < 4) {
-      alert("PIN must be at least 4 digits");
+    if (!validateInput(pin, { minLength: 4 }, errorHandler)) {
       return;
     }
     if (pin !== confirmPin) {
-      alert("PINs do not match");
+      errorHandler.showError("PINs do not match");
       return;
     }
 
     setLoading(true);
     try {
       await invoke("set_pin", { userId: "default", pin });
-      alert("PIN set successfully!");
+      errorHandler.showSuccess("PIN set successfully!");
       setPin("");
       setConfirmPin("");
     } catch (error) {
-      alert(`Failed to set PIN: ${error}`);
+      errorHandler.showError("Failed to set PIN", error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogin = async () => {
-    if (loginPin.length < 4) {
-      alert("PIN must be at least 4 digits");
+    if (!validateInput(loginPin, { minLength: 4 }, errorHandler)) {
       return;
     }
 
@@ -95,12 +95,13 @@ export default function SecurityCenter() {
         setIsAuthenticated(true);
         setLoginPin("");
         await loadAuthAttempts();
+        errorHandler.showSuccess("Login successful");
       } else {
-        alert("Invalid PIN");
+        errorHandler.showError("Invalid PIN");
         await loadAuthAttempts();
       }
     } catch (error) {
-      alert(`Login failed: ${error}`);
+      errorHandler.showError("Login failed", error);
     } finally {
       setLoading(false);
     }

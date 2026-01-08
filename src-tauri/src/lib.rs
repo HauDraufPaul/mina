@@ -110,7 +110,11 @@ pub fn run() {
             eprintln!("MINA: Initializing stores...");
             
             eprintln!("MINA: Initializing RateLimitStore...");
-            let _ = RateLimitStore::new(db.conn.clone());
+            RateLimitStore::new(db.conn.clone())
+                .map_err(|e| {
+                    eprintln!("MINA: Failed to initialize RateLimitStore: {}", e);
+                    e
+                })?;
             eprintln!("MINA: RateLimitStore initialized");
             
             eprintln!("MINA: Initializing TestingStore...");

@@ -10,6 +10,7 @@ export default function Button({
   variant = "primary",
   className,
   children,
+  disabled,
   ...props
 }: ButtonProps) {
   return (
@@ -18,8 +19,10 @@ export default function Button({
         "glass-button",
         variant === "primary" && "glass-button-primary",
         variant === "ghost" && "bg-transparent border-transparent",
+        disabled && "glass-button-disabled",
         className
       )}
+      disabled={disabled}
       {...props}
     >
       {children}

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Modal from "../../ui/Modal";
+import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { 
   Rss, 
   Plus, 
@@ -76,6 +77,7 @@ interface ExtractedEntity {
 type Tab = "sources" | "reader";
 
 export default function RealityTimelineStudio() {
+  const errorHandler = useErrorHandler();
   const [activeTab, setActiveTab] = useState<Tab>("sources");
   const [feeds, setFeeds] = useState<RSSFeed[]>([]);
   const [items, setItems] = useState<RSSItem[]>([]);
@@ -149,7 +151,7 @@ export default function RealityTimelineStudio() {
       const feedsData = await invoke<RSSFeed[]>("list_rss_feeds");
       setFeeds(feedsData);
     } catch (error) {
-      console.error("Failed to load feeds:", error);
+      errorHandler.showError("Failed to load feeds", error);
     } finally {
       setLoading(false);
     }
@@ -161,7 +163,7 @@ export default function RealityTimelineStudio() {
       const itemsData = await invoke<RSSItem[]>("get_recent_rss_items", { limit: 100 });
       setItems(itemsData);
     } catch (error) {
-      console.error("Failed to load items:", error);
+      errorHandler.showError("Failed to load items", error);
     } finally {
       setLoadingItems(false);
     }
@@ -178,7 +180,7 @@ export default function RealityTimelineStudio() {
       });
       setItems(items);
     } catch (error) {
-      console.error("Failed to load articles:", error);
+      errorHandler.showError("Failed to load articles", error);
     }
   };
 
@@ -187,7 +189,7 @@ export default function RealityTimelineStudio() {
       const foldersData = await invoke<ArticleFolder[]>("list_article_folders");
       setFolders(foldersData);
     } catch (error) {
-      console.error("Failed to load folders:", error);
+      errorHandler.showError("Failed to load folders", error);
     }
   };
 
@@ -199,7 +201,7 @@ export default function RealityTimelineStudio() {
       });
       setEntities(entitiesData);
     } catch (error) {
-      console.error("Failed to load entities:", error);
+      errorHandler.showError("Failed to load entities", error);
     } finally {
       setLoadingEntities(false);
     }
@@ -213,7 +215,7 @@ export default function RealityTimelineStudio() {
         setSelectedArticle(prev => prev ? { ...prev, read: true } : null);
       }
     } catch (error) {
-      console.error("Failed to mark as read:", error);
+      errorHandler.showError("Failed to mark as read", error);
     }
   };
 
@@ -225,7 +227,7 @@ export default function RealityTimelineStudio() {
         setSelectedArticle(prev => prev ? { ...prev, favorite: isFavorite } : null);
       }
     } catch (error) {
-      console.error("Failed to toggle favorite:", error);
+      errorHandler.showError("Failed to toggle favorite", error);
     }
   };
 
@@ -237,7 +239,7 @@ export default function RealityTimelineStudio() {
         setSelectedArticle(prev => prev ? { ...prev, saved: isSaved } : null);
       }
     } catch (error) {
-      console.error("Failed to toggle saved:", error);
+      errorHandler.showError("Failed to toggle saved", error);
     }
   };
 
@@ -250,7 +252,7 @@ export default function RealityTimelineStudio() {
         if (updated) setSelectedArticle(updated);
       }
     } catch (error) {
-      console.error("Failed to set folder:", error);
+      errorHandler.showError("Failed to set folder", error);
     }
   };
 
@@ -265,9 +267,9 @@ export default function RealityTimelineStudio() {
       setNewFolderColor("#3b82f6");
       setShowFolderModal(false);
       await loadFolders();
+      errorHandler.showSuccess("Folder created successfully");
     } catch (error) {
-      console.error("Failed to create folder:", error);
-      alert(`Failed to create folder: ${error}`);
+      errorHandler.showError("Failed to create folder", error);
     }
   };
 
@@ -277,8 +279,9 @@ export default function RealityTimelineStudio() {
       await invoke("delete_article_folder", { id });
       await loadFolders();
       await loadReaderArticles();
+      errorHandler.showSuccess("Folder deleted successfully");
     } catch (error) {
-      console.error("Failed to delete folder:", error);
+      errorHandler.showError("Failed to delete folder", error);
     }
   };
 
@@ -290,10 +293,9 @@ export default function RealityTimelineStudio() {
         article_id: selectedArticle.id,
       });
       await loadEntities(selectedArticle.id);
-      alert(`Extracted ${count} entities from article!`);
+      errorHandler.showSuccess(`Extracted ${count} entities from article!`);
     } catch (error) {
-      console.error("Failed to extract entities:", error);
-      alert(`Failed to extract entities: ${error}`);
+      errorHandler.showError("Failed to extract entities", error);
     } finally {
       setExtractingEntities(false);
     }
@@ -316,7 +318,7 @@ ${selectedArticle.content}
     `.trim();
     
     navigator.clipboard.writeText(content);
-    alert("Article content copied to clipboard!");
+    errorHandler.showSuccess("Article content copied to clipboard!");
   };
 
   const handleFetchArticles = async () => {
@@ -324,7 +326,7 @@ ${selectedArticle.content}
       setLoadingItems(true);
       const enabledFeeds = feeds.filter(f => f.enabled);
       if (enabledFeeds.length === 0) {
-        alert("No enabled feeds to fetch from. Please enable at least one RSS feed.");
+        errorHandler.showWarning("No enabled feeds to fetch from. Please enable at least one RSS feed.");
         setLoadingItems(false);
         return;
       }
@@ -333,18 +335,17 @@ ${selectedArticle.content}
       await loadItems();
       await loadReaderArticles();
       await loadFeeds();
-      alert(`Successfully fetched ${count} article(s) from ${enabledFeeds.length} feed(s)!`);
+      errorHandler.showSuccess(`Successfully fetched ${count} article(s) from ${enabledFeeds.length} feed(s)!`);
     } catch (error) {
-      console.error("Failed to fetch articles:", error);
-      alert(`Failed to fetch articles: ${error}`);
+      errorHandler.showError("Failed to fetch articles", error);
     } finally {
       setLoadingItems(false);
     }
   };
 
   const handleCreateFeed = async () => {
-    if (!newFeedUrl.trim() || !newFeedName.trim()) {
-      alert("Please enter both URL and name");
+    if (!validateInput(newFeedUrl.trim(), { required: true }, errorHandler) ||
+        !validateInput(newFeedName.trim(), { required: true }, errorHandler)) {
       return;
     }
 
@@ -359,8 +360,9 @@ ${selectedArticle.content}
       setNewFeedReliability(0.5);
       setShowAddModal(false);
       await loadFeeds();
+      errorHandler.showSuccess("Feed created successfully");
     } catch (error) {
-      alert(`Failed to create feed: ${error}`);
+      errorHandler.showError("Failed to create feed", error);
     }
   };
 
@@ -375,8 +377,9 @@ ${selectedArticle.content}
       });
       setShowEditModal(null);
       await loadFeeds();
+      errorHandler.showSuccess("Feed updated successfully");
     } catch (error) {
-      alert(`Failed to update feed: ${error}`);
+      errorHandler.showError("Failed to update feed", error);
     }
   };
 
@@ -390,8 +393,9 @@ ${selectedArticle.content}
       await loadFeeds();
       await loadItems();
       await loadReaderArticles();
+      errorHandler.showSuccess("Feed deleted successfully");
     } catch (error) {
-      alert(`Failed to delete feed: ${error}`);
+      errorHandler.showError("Failed to delete feed", error);
     }
   };
 
@@ -1052,10 +1056,10 @@ ${selectedArticle.content}
                                   const updated = await invoke<RSSItem | null>("get_rss_item", { id: selectedArticle.id });
                                   if (updated) {
                                     setSelectedArticle(updated);
-                                    alert("Full article content fetched successfully!");
+                                    errorHandler.showSuccess("Full article content fetched successfully!");
                                   }
                                 } catch (error) {
-                                  alert(`Failed to fetch full article: ${error}`);
+                                  errorHandler.showError("Failed to fetch full article", error);
                                 }
                               }}
                             >
@@ -1085,10 +1089,10 @@ ${selectedArticle.content}
                             const updated = await invoke<RSSItem | null>("get_rss_item", { id: selectedArticle.id });
                             if (updated) {
                               setSelectedArticle(updated);
-                              alert("Full article content fetched successfully!");
+                              errorHandler.showSuccess("Full article content fetched successfully!");
                             }
                           } catch (error) {
-                            alert(`Failed to fetch full article: ${error}`);
+                            errorHandler.showError("Failed to fetch full article", error);
                           }
                         }}
                       >

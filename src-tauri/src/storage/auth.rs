@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rusqlite::{Connection, params, OptionalExtension};
 use sha2::{Sha256, Digest};
 use std::sync::{Arc, Mutex};
@@ -8,14 +8,16 @@ pub struct AuthManager {
 }
 
 impl AuthManager {
-    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Result<Self> {
         let auth = AuthManager { conn };
-        auth.init_schema().unwrap();
-        auth
+        auth.init_schema()
+            .context("Failed to initialize auth schema")?;
+        Ok(auth)
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         conn.execute(
             "CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -65,7 +67,8 @@ impl AuthManager {
     }
 
     pub fn set_pin(&self, user_id: &str, pin: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let hashed = Self::hash_pin(pin);
         
         conn.execute(
@@ -77,7 +80,8 @@ impl AuthManager {
     }
 
     pub fn verify_pin(&self, user_id: &str, pin: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let hashed = Self::hash_pin(pin);
         
         let stored: Option<String> = conn
@@ -92,7 +96,8 @@ impl AuthManager {
     }
 
     pub fn create_session(&self, user_id: &str) -> Result<String> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();
         let expires_at = now + 3600; // 1 hour
@@ -107,7 +112,8 @@ impl AuthManager {
     }
 
     pub fn validate_session(&self, session_id: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         
         let count: i64 = match conn
@@ -136,7 +142,8 @@ impl AuthManager {
     }
 
     pub fn log_auth_attempt(&self, user_id: &str, success: bool, ip_address: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         
         conn.execute(
@@ -149,7 +156,8 @@ impl AuthManager {
     }
 
     pub fn get_recent_attempts(&self, limit: i32) -> Result<Vec<AuthAttempt>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, success, ip_address, created_at
              FROM auth_attempts
@@ -175,7 +183,8 @@ impl AuthManager {
     }
 
     pub fn grant_permission(&self, user_id: &str, resource: &str, action: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         
         conn.execute(
@@ -188,7 +197,8 @@ impl AuthManager {
     }
 
     pub fn check_permission(&self, user_id: &str, resource: &str, action: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let count: i64 = match conn
             .query_row(

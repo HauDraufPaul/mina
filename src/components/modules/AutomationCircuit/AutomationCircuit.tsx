@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { Code, Play, Save, List, Workflow, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
 
 interface Script {
@@ -35,6 +36,7 @@ interface WorkflowExecution {
 }
 
 export default function AutomationCircuit() {
+  const errorHandler = useErrorHandler();
   const [scripts, setScripts] = useState<Script[]>([]);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
@@ -64,37 +66,37 @@ export default function AutomationCircuit() {
       setExecutions(executionsData);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load data:", error);
+      errorHandler.showError("Failed to load data", error);
       setLoading(false);
     }
   };
 
   const handleCreateScript = async () => {
-    if (!scriptName.trim()) {
-      // TODO: Replace with proper error UI component
-      alert("Please enter a script name");
+    const trimmedName = scriptName.trim();
+    
+    if (!validateInput(trimmedName, { required: true }, errorHandler)) {
       return;
     }
 
-    // Validate script name (alphanumeric, underscore, hyphen)
-    if (!/^[a-zA-Z0-9_-]+$/.test(scriptName.trim())) {
-      alert("Script name can only contain letters, numbers, underscores, and hyphens");
+    if (!validateInput(trimmedName, {
+      pattern: /^[a-zA-Z0-9_-]+$/,
+      patternMessage: "Script name can only contain letters, numbers, underscores, and hyphens",
+    }, errorHandler)) {
       return;
     }
 
     try {
       await invoke("create_script", {
-        name: scriptName.trim(),
+        name: trimmedName,
         content: scriptContent || "// Your code here",
         language: scriptLanguage,
       });
+      errorHandler.showSuccess("Script created successfully");
       setScriptName("");
       setScriptContent("");
       await loadData();
     } catch (error) {
-      // TODO: Replace with proper error UI component
-      console.error("Failed to create script:", error);
-      alert(`Failed to create script: ${error}`);
+      errorHandler.showError("Failed to create script", error);
     }
   };
 
@@ -108,7 +110,7 @@ export default function AutomationCircuit() {
         setScriptLanguage(script.language);
       }
     } catch (error) {
-      console.error("Failed to load script:", error);
+      errorHandler.showError("Failed to load script", error);
     }
   };
 

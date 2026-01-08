@@ -23,19 +23,31 @@
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
   font-family: var(--font-mono);
   font-size: 0.875rem;
+  outline: none;
+  position: relative;
 }
 
-.glass-button:hover {
+.glass-button:hover:not(:disabled) {
   border-color: var(--neon-cyan);
   box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
   color: var(--neon-cyan);
+  transform: translateY(-1px);
 }
 
-.glass-button:active {
-  transform: scale(0.98);
+.glass-button:active:not(:disabled) {
+  transform: scale(0.98) translateY(0);
+  box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
+}
+
+.glass-button:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px #0a0a0a,
+    0 0 0 4px rgba(0, 217, 255, 0.5),
+    0 0 20px rgba(0, 217, 255, 0.3);
 }
 
 .glass-button-primary {
@@ -44,9 +56,38 @@
   color: var(--neon-cyan);
 }
 
-.glass-button-primary:hover {
+.glass-button-primary:hover:not(:disabled) {
   background: rgba(0, 217, 255, 0.2);
   box-shadow: 0 0 30px rgba(0, 217, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.glass-button-primary:active:not(:disabled) {
+  transform: scale(0.98) translateY(0);
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+}
+
+.glass-button-primary:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px #0a0a0a,
+    0 0 0 4px rgba(0, 217, 255, 0.6),
+    0 0 30px rgba(0, 217, 255, 0.4);
+}
+
+.glass-button-disabled,
+.glass-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.glass-button-disabled:hover,
+.glass-button:disabled:hover {
+  transform: none;
+  border-color: var(--glass-border);
+  box-shadow: none;
+  color: var(--text-primary);
 }
 
 .glass-input {
@@ -70,5 +111,75 @@
 
 .glass-input::placeholder {
   color: var(--text-tertiary);
+}
+
+.glass-tab {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(var(--blur-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass));
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-tab:hover:not(.glass-tab-active) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.glass-tab:active:not(.glass-tab-active) {
+  transform: scale(0.98) translateY(0);
+}
+
+.glass-tab:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px #0a0a0a,
+    0 0 0 4px rgba(0, 217, 255, 0.5),
+    0 0 20px rgba(0, 217, 255, 0.3);
+}
+
+.glass-tab-active {
+  background: rgba(0, 217, 255, 0.2);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+}
+
+.glass-tab-active:hover {
+  background: rgba(0, 217, 255, 0.25);
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.glass-tab-active:active {
+  transform: scale(0.98) translateY(0);
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+}
+
+.glass-tab-active:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px #0a0a0a,
+    0 0 0 4px rgba(0, 217, 255, 0.6),
+    0 0 30px rgba(0, 217, 255, 0.4);
+}
+
+.glass-tab-inactive {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--glass-border);
+  color: var(--text-secondary);
 }
 

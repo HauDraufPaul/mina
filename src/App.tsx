@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ToastProvider } from "./components/ui/Toast";
 import Layout from "./components/layout/Layout";
 import RadialHub from "./components/RadialHub/RadialHub";
 import SystemMonitorHub from "./components/modules/SystemMonitorHub/SystemMonitorHub";
@@ -34,9 +35,10 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
+      <ToastProvider>
+        <BrowserRouter>
+          <Layout>
+            <Routes>
             <Route path="/" element={<RadialHub />} />
             <Route path="/system-monitor" element={<SystemMonitorHub />} />
             <Route path="/network" element={<NetworkConstellation />} />
@@ -60,6 +62,7 @@ function App() {
           </Routes>
         </Layout>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

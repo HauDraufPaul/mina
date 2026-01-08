@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Modal from "../../ui/Modal";
+import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { MessageSquare, Plus, Send, Bot, User, Cpu, RefreshCw, FolderOpen, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface Conversation {
@@ -39,6 +40,7 @@ interface OllamaModel {
 }
 
 export default function AIConsciousness() {
+  const errorHandler = useErrorHandler();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -83,7 +85,7 @@ export default function AIConsciousness() {
         await loadModels();
       }
     } catch (error) {
-      console.error("Failed to check Ollama status:", error);
+      errorHandler.showError("Failed to check Ollama status", error);
       setOllamaStatus(false);
     }
   };
@@ -96,7 +98,7 @@ export default function AIConsciousness() {
         setSelectedModel(models[0].name);
       }
     } catch (error) {
-      console.error("Failed to load Ollama models:", error);
+      errorHandler.showError("Failed to load Ollama models", error);
     }
   };
 
@@ -105,7 +107,7 @@ export default function AIConsciousness() {
       const folder = await invoke<string>("get_models_folder_path");
       setModelsFolder(folder);
     } catch (error) {
-      console.error("Failed to get models folder:", error);
+      errorHandler.showError("Failed to get models folder", error);
     }
   };
 
@@ -114,7 +116,7 @@ export default function AIConsciousness() {
       const files = await invoke<string[]>("scan_models_folder");
       setAvailableModelFiles(files);
     } catch (error) {
-      console.error("Failed to scan models folder:", error);
+      errorHandler.showError("Failed to scan models folder", error);
     }
   };
 
@@ -127,7 +129,7 @@ export default function AIConsciousness() {
       }
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load conversations:", error);
+      errorHandler.showError("Failed to load conversations", error);
       setLoading(false);
     }
   };
@@ -139,7 +141,7 @@ export default function AIConsciousness() {
       });
       setMessages(data);
     } catch (error) {
-      console.error("Failed to load messages:", error);
+      errorHandler.showError("Failed to load messages", error);
     }
   };
 
@@ -148,18 +150,17 @@ export default function AIConsciousness() {
       const data = await invoke<PromptTemplate[]>("list_prompt_templates");
       setTemplates(data);
     } catch (error) {
-      console.error("Failed to load templates:", error);
+      errorHandler.showError("Failed to load templates", error);
     }
   };
 
   const handleCreateConversation = async () => {
-    if (!conversationTitle.trim()) {
-      alert("Please enter a conversation title");
+    const trimmedTitle = conversationTitle.trim();
+    if (!validateInput(trimmedTitle, { required: true }, errorHandler)) {
       return;
     }
 
-    if (conversationTitle.trim().length > 100) {
-      alert("Title is too long (max 100 characters)");
+    if (!validateInput(trimmedTitle, { maxLength: 100 }, errorHandler)) {
       return;
     }
 
@@ -174,25 +175,24 @@ export default function AIConsciousness() {
       setSelectedConversation(id);
       setConversationTitle("");
       setShowConversationModal(false);
+      errorHandler.showSuccess("Conversation created successfully");
     } catch (error) {
-      console.error("Failed to create conversation:", error);
-      alert(`Failed to create conversation: ${error}`);
+      errorHandler.showError("Failed to create conversation", error);
     }
   };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedConversation) return;
     if (!selectedModel) {
-      alert("Please select a model first");
+      errorHandler.showWarning("Please select a model first");
       return;
     }
     if (!ollamaStatus) {
-      alert("Ollama is not running. Please start Ollama first.");
+      errorHandler.showWarning("Ollama is not running. Please start Ollama first.");
       return;
     }
 
-    if (inputMessage.length > 10000) {
-      alert("Message is too long (max 10000 characters)");
+    if (!validateInput(inputMessage, { maxLength: 10000 }, errorHandler)) {
       return;
     }
 
@@ -238,8 +238,7 @@ export default function AIConsciousness() {
 
       await loadMessages(selectedConversation);
     } catch (error) {
-      console.error("Failed to send message:", error);
-      alert(`Failed to send message: ${error}`);
+      errorHandler.showError("Failed to send message", error);
       setInputMessage(userMessage); // Restore message on error
     } finally {
       setIsSending(false);
@@ -251,38 +250,37 @@ export default function AIConsciousness() {
       const result = await invoke<string>("load_model_from_file", {
         filePath,
       });
-      alert(result);
+      errorHandler.showSuccess(result);
       await scanModelsFolder();
       await loadModels();
     } catch (error) {
-      console.error("Failed to load model:", error);
-      alert(`Failed to load model: ${error}`);
+      errorHandler.showError("Failed to load model", error);
     }
   };
 
   const handleCreateTemplate = async () => {
-    if (!templateName.trim()) {
-      alert("Please enter a template name");
+    const trimmedName = templateName.trim();
+    if (!validateInput(trimmedName, { required: true }, errorHandler)) {
       return;
     }
 
-    if (!/^[a-zA-Z0-9_\s-]+$/.test(templateName.trim())) {
-      alert("Template name can only contain letters, numbers, underscores, hyphens, and spaces");
+    if (!validateInput(trimmedName, {
+      pattern: /^[a-zA-Z0-9_\s-]+$/,
+      patternMessage: "Template name can only contain letters, numbers, underscores, hyphens, and spaces",
+    }, errorHandler)) {
       return;
     }
 
-    if (!templateContent.trim()) {
-      alert("Please enter template content");
+    const trimmedContent = templateContent.trim();
+    if (!validateInput(trimmedContent, { required: true }, errorHandler)) {
       return;
     }
 
-    if (templateContent.length > 50000) {
-      alert("Template content is too long (max 50000 characters)");
+    if (!validateInput(templateContent, { maxLength: 50000 }, errorHandler)) {
       return;
     }
 
-    if (templateDescription && templateDescription.length > 500) {
-      alert("Description is too long (max 500 characters)");
+    if (templateDescription && !validateInput(templateDescription, { maxLength: 500 }, errorHandler)) {
       return;
     }
 
@@ -297,9 +295,9 @@ export default function AIConsciousness() {
       setTemplateContent("");
       setTemplateDescription("");
       setShowTemplateModal(false);
+      errorHandler.showSuccess("Template created successfully");
     } catch (error) {
-      console.error("Failed to create template:", error);
-      alert(`Failed to create template: ${error}`);
+      errorHandler.showError("Failed to create template", error);
     }
   };
 
