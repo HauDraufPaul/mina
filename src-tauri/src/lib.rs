@@ -8,9 +8,10 @@ mod providers;
 mod commands;
 mod ws;
 mod utils;
+mod services;
 
 use storage::Database;
-use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, TemporalStore, ProjectStore, MigrationTracker};
+use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, TemporalStore, ProjectStore, MigrationTracker, StockNewsStore};
 use providers::{SystemProvider, NetworkProvider, ProcessProvider, HomebrewProvider, SystemUtilsProvider, OllamaProvider};
 use ws::WsServer;
 use std::path::PathBuf;
@@ -164,6 +165,20 @@ pub fn run() {
             eprintln!("MINA: Initializing MigrationTracker...");
             let _ = MigrationTracker::new(db.conn.clone());
             eprintln!("MINA: MigrationTracker initialized");
+            
+            eprintln!("MINA: Initializing StockNewsStore...");
+            let stock_news_store = StockNewsStore::new(db.conn.clone());
+            if let Err(e) = stock_news_store.init_schema() {
+                eprintln!("WARNING: Failed to initialize StockNewsStore schema: {}", e);
+            } else {
+                eprintln!("MINA: StockNewsStore schema initialized");
+                // Initialize default tickers (S&P 500 and DAX)
+                if let Err(e) = stock_news_store.init_default_tickers() {
+                    eprintln!("WARNING: Failed to initialize default tickers: {}", e);
+                } else {
+                    eprintln!("MINA: Default tickers initialized");
+                }
+            }
             
             // Seed initial data
             if let Err(e) = storage::seed_data::seed_initial_data(&db.conn) {
@@ -360,6 +375,13 @@ pub fn run() {
             commands::ollama::chat_with_ollama,
             commands::ollama::scan_models_folder,
             commands::ollama::get_models_folder_path,
+            commands::stock_news::get_stock_tickers,
+            commands::stock_news::get_stock_news,
+            commands::stock_news::search_stock_news,
+            commands::stock_news::get_news_for_ticker,
+            commands::stock_news::refresh_stock_news,
+            commands::stock_news::start_news_stream,
+            commands::stock_news::cleanup_old_stock_news,
             get_recent_errors,
             save_error
         ])

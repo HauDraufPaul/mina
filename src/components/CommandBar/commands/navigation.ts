@@ -21,6 +21,8 @@ const moduleRoutes: Record<string, string> = {
   "rate-limit": "/rate-limit",
   "vector-search": "/vector-search",
   "analytics": "/analytics",
+  "stock-news": "/stock-news",
+  "news": "/stock-news",
 };
 
 export const navigationCommands: Command[] = [

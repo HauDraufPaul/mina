@@ -26,6 +26,7 @@ import {
   ChevronDown,
   Layers,
   Gauge,
+  Newspaper,
 } from "lucide-react";
 
 interface MenuItem {
@@ -81,6 +82,14 @@ const menuStructure: MenuEntry[] = [
     icon: Gauge,
     items: [
       { path: "/reality", icon: Clock, label: "Reality & Timeline" },
+    ],
+  },
+  {
+    id: "market-intelligence",
+    label: "MARKET INTELLIGENCE",
+    icon: Gauge,
+    items: [
+      { path: "/stock-news", icon: Newspaper, label: "Stock News" },
     ],
   },
 ];

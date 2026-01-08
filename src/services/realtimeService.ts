@@ -33,7 +33,9 @@ export type RealtimeEventType =
   | "error"
   | "config-update"
   | "temporal-alert"
-  | "temporal-job-status";
+  | "temporal-job-status"
+  | "stock-news"
+  | "stock-news-batch";
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

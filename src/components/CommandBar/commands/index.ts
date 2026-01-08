@@ -3,12 +3,13 @@ import { navigationCommands } from "./navigation";
 import { systemCommands } from "./system";
 import { panelCommands } from "./panels";
 import { temporalCommands } from "./temporal";
+import { stockNewsCommands } from "./stock_news";
 
 // Registry of all commands
 const commandRegistry = new Map<string, Command>();
 
 // Register all commands
-[...navigationCommands, ...systemCommands, ...panelCommands, ...temporalCommands].forEach((cmd) => {
+[...navigationCommands, ...systemCommands, ...panelCommands, ...temporalCommands, ...stockNewsCommands].forEach((cmd) => {
   commandRegistry.set(cmd.name, cmd);
   if (cmd.aliases) {
     cmd.aliases.forEach((alias) => {

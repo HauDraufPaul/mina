@@ -13,6 +13,7 @@ pub mod temporal;
 pub mod testing;
 pub mod projects;
 pub mod seed_data;
+pub mod stock_news;
 
 pub use database::{Database, ErrorRecord};
 pub use migrations::MigrationManager;
@@ -43,4 +44,5 @@ pub use temporal::{
 };
 pub use testing::{TestingStore, TestSuite, TestResult, TestSuiteStats};
 pub use projects::{ProjectStore, Project};
+pub use stock_news::{StockNewsStore, StockTicker, StockNewsItem, StockNewsTicker};
 

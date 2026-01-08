@@ -12,6 +12,8 @@ pub enum WsMessage {
     NetworkUpdate(crate::providers::network::NetworkInterface),
     Error(crate::storage::ErrorRecord),
     ConfigUpdate { key: String, value: String },
+    StockNews(crate::storage::StockNewsItem),
+    StockNewsBatch(Vec<crate::storage::StockNewsItem>),
     Ping,
     Pong,
 }

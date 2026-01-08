@@ -20,6 +20,7 @@ pub mod testing;
 pub mod projects;
 pub mod ollama;
 pub mod temporal;
+pub mod stock_news;
 
 // Re-exports are not needed - commands are registered directly in lib.rs
 

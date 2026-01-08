@@ -23,6 +23,7 @@ import RateLimitMonitor from "./components/modules/RateLimitMonitor/RateLimitMon
 import VectorSearch from "./components/modules/VectorSearch/VectorSearch";
 import AdvancedAnalytics from "./components/modules/AdvancedAnalytics/AdvancedAnalytics";
 import GridLayoutView from "./components/GridLayout/GridLayoutView";
+import { NewsPanel } from "./components/StockNews";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,6 +62,7 @@ function App() {
             <Route path="/vector-search" element={<VectorSearch />} />
             <Route path="/analytics" element={<AdvancedAnalytics />} />
             <Route path="/grid" element={<GridLayoutView />} />
+            <Route path="/stock-news" element={<NewsPanel />} />
           </Routes>
         </Layout>
       </BrowserRouter>

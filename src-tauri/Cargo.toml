@@ -31,4 +31,5 @@ tokio-stream = "0.1"
 notify = "6"
 rss = "2.0"
 scraper = "0.19"
+futures = "0.3"
 
