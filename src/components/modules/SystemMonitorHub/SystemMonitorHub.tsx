@@ -5,7 +5,6 @@ import Button from "../../ui/Button";
 import { Cpu, HardDrive, Wifi, MemoryStick, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Pause, Play } from "lucide-react";
 import ProcessList from "./ProcessList";
 import { useRealtimeData } from "../../../hooks/useRealtimeData";
-import { SystemMetrics as RealtimeSystemMetrics } from "../../../services/realtimeService";
 
 interface SystemMetrics {
   cpu: {

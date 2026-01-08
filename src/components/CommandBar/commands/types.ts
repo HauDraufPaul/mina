@@ -1,9 +1,13 @@
+export interface CommandContext {
+  navigate: (path: string) => void;
+}
+
 export interface Command {
   id: string;
   name: string;
   description: string;
   aliases?: string[];
-  execute: (args: string[]) => void | Promise<void>;
+  execute: (args: string[], context: CommandContext) => void | Promise<void>;
   autocomplete?: (args: string[]) => string[];
   category?: string;
 }

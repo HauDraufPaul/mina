@@ -1,4 +1,4 @@
-import { ReactNode, ButtonHTMLAttributes } from "react";
+import { ReactNode } from "react";
 import { cn } from "@/utils/cn";
 
 interface TabItem {

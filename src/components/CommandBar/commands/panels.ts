@@ -1,6 +1,5 @@
 import { Command } from "./types";
 import { useGridLayoutStore } from "../../../stores/gridLayoutStore";
-import { navigate } from "../../../utils/navigation";
 
 export const panelCommands: Command[] = [
   {
@@ -9,7 +8,7 @@ export const panelCommands: Command[] = [
     description: "Open a module in a new panel",
     aliases: ["o"],
     category: "Panels",
-    execute: async (args) => {
+    execute: (args, context) => {
       if (args.length === 0) {
         throw new Error("Usage: open <module>");
       }
@@ -39,7 +38,8 @@ export const panelCommands: Command[] = [
       addPanel(panel);
       
       // Navigate to grid view
-      await navigate("/grid");
+      console.log("Executing open command, navigating to /grid");
+      context.navigate("/grid");
     },
     autocomplete: (args) => {
       const modules = [
@@ -76,8 +76,9 @@ export const panelCommands: Command[] = [
     description: "Open grid layout view",
     aliases: ["layout"],
     category: "Panels",
-    execute: async () => {
-      await navigate("/grid");
+    execute: (_args, context) => {
+      console.log("Executing grid command, navigating to /grid");
+      context.navigate("/grid");
     },
   },
 ];

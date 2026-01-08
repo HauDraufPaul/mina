@@ -1,5 +1,4 @@
 import { getCommand } from "./commands";
-import { parseCommand } from "./commands";
 
 interface CommandSuggestionsProps {
   input: string;
@@ -9,7 +8,6 @@ interface CommandSuggestionsProps {
 }
 
 export default function CommandSuggestions({
-  input,
   suggestions,
   selectedIndex,
   onSelect,
@@ -17,9 +15,6 @@ export default function CommandSuggestions({
   if (suggestions.length === 0) {
     return null;
   }
-
-  const parsed = parseCommand(input);
-  const currentCmd = parsed ? getCommand(parsed.command) : null;
 
   return (
     <div className="mt-2 border border-white/10 rounded-lg bg-black/80 backdrop-blur-md overflow-hidden">

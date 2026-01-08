@@ -7,19 +7,24 @@ export function setNavigateFunction(fn: (path: string) => void) {
   navigateFunction = fn;
 }
 
-export async function navigate(path: string) {
+export function navigate(path: string) {
+  // Normalize path - ensure it starts with /
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  
   if (!navigateFunction) {
     // Fallback: use window.location if navigate function not set
-    if (path.startsWith("/")) {
-      window.location.href = path;
-    } else {
-      window.location.href = `/${path}`;
-    }
+    console.warn("Navigate function not set, using window.location for:", normalizedPath);
+    window.location.href = normalizedPath;
     return;
   }
   
-  // Normalize path
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  navigateFunction(normalizedPath);
+  console.log("Navigating to:", normalizedPath);
+  try {
+    navigateFunction(normalizedPath);
+  } catch (error) {
+    console.error("Navigation error:", error);
+    // Fallback to window.location
+    window.location.href = normalizedPath;
+  }
 }
 

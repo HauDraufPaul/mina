@@ -24,6 +24,7 @@ export function useCommandBar() {
   // Set navigate function for commands
   useEffect(() => {
     setNavigateFunction(navigate);
+    console.log("Navigate function set in command bar");
   }, [navigate]);
 
   // Update suggestions based on input
@@ -52,11 +53,20 @@ export function useCommandBar() {
     const cmd = getCommand(command);
 
     if (cmd && cmd.autocomplete) {
-      // Use command's autocomplete
+      // Use command's autocomplete for arguments
       const completions = cmd.autocomplete(args);
-      setSuggestions(completions);
-    } else {
-      // Fuzzy search commands
+      // Filter completions based on the current argument being typed
+      if (args.length > 0) {
+        const currentArg = args[args.length - 1];
+        const filtered = completions.filter((c) => 
+          c.toLowerCase().startsWith(currentArg.toLowerCase())
+        );
+        setSuggestions(filtered);
+      } else {
+        setSuggestions(completions);
+      }
+    } else if (args.length === 0) {
+      // Fuzzy search commands when no args yet
       const allCommands = getAllCommands();
       const fuse = new Fuse(allCommands, {
         keys: ["name", "description", "aliases"],
@@ -64,6 +74,9 @@ export function useCommandBar() {
       });
       const results = fuse.search(trimmed);
       setSuggestions(results.slice(0, 10).map((r) => r.item.name));
+    } else {
+      // Command not found or has args but no autocomplete
+      setSuggestions([]);
     }
   }, [input, isOpen, history, setSuggestions]);
 
@@ -83,10 +96,28 @@ export function useCommandBar() {
       }
 
       try {
-        await cmd.execute(args);
+        const context = {
+          navigate: (path: string) => {
+            console.log("Command context navigate called with:", path);
+            try {
+              navigate(path);
+            } catch (navError) {
+              console.error("Navigation error:", navError);
+              throw navError;
+            }
+          },
+        };
+        console.log(`Executing command: ${command} with args:`, args);
+        const result = cmd.execute(args, context);
+        // Handle both sync and async commands
+        if (result instanceof Promise) {
+          await result;
+        }
+        console.log(`Command ${command} executed successfully`);
         addToHistory(commandInput, true);
         close();
       } catch (error) {
+        console.error(`Command ${command} failed:`, error);
         addToHistory(commandInput, false);
         throw error;
       }
