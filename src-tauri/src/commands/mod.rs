@@ -19,6 +19,7 @@ pub mod osint;
 pub mod testing;
 pub mod projects;
 pub mod ollama;
+pub mod temporal;
 
 // Re-exports are not needed - commands are registered directly in lib.rs
 

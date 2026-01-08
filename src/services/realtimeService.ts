@@ -26,7 +26,14 @@ export interface SystemMetrics {
   };
 }
 
-export type RealtimeEventType = "system-metrics" | "network-update" | "process-update" | "error" | "config-update";
+export type RealtimeEventType =
+  | "system-metrics"
+  | "network-update"
+  | "process-update"
+  | "error"
+  | "config-update"
+  | "temporal-alert"
+  | "temporal-job-status";
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

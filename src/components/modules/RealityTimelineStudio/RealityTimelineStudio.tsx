@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Tabs from "../../ui/Tabs";
 import Modal from "../../ui/Modal";
 import { useErrorHandler, validateInput } from "@/utils/errorHandler";
+import TemporalEngine from "./temporal/TemporalEngine";
 import { 
   Rss, 
   Plus, 
@@ -75,10 +77,11 @@ interface ExtractedEntity {
   extracted_at: number;
 }
 
-type Tab = "sources" | "reader";
+type Tab = "sources" | "reader" | "temporal";
 
 export default function RealityTimelineStudio() {
   const errorHandler = useErrorHandler();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<Tab>("sources");
   const [feeds, setFeeds] = useState<RSSFeed[]>([]);
   const [items, setItems] = useState<RSSItem[]>([]);
@@ -108,6 +111,14 @@ export default function RealityTimelineStudio() {
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderColor, setNewFolderColor] = useState("#3b82f6");
   const articleContentRef = useRef<HTMLDivElement>(null);
+
+  // Deep link: if /reality?tab=<temporalSubTab> is present, jump to Temporal Engine tab
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("tab")) {
+      setActiveTab("temporal");
+    }
+  }, [location.search]);
 
   // Debounce search
   useEffect(() => {
@@ -576,6 +587,11 @@ ${selectedArticle.content}
             id: "reader",
             label: "Reader",
             icon: <BookOpen className="w-4 h-4" />,
+          },
+          {
+            id: "temporal",
+            label: "Temporal Engine",
+            icon: <Clock className="w-4 h-4" />,
           },
         ]}
         activeTab={activeTab}
@@ -1336,6 +1352,9 @@ ${selectedArticle.content}
           </div>
         </div>
       )}
+
+      {/* Temporal Engine Tab */}
+      {activeTab === "temporal" && <TemporalEngine />}
 
       {/* Add Feed Modal */}
       <Modal

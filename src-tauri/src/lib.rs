@@ -10,7 +10,7 @@ mod ws;
 mod utils;
 
 use storage::Database;
-use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, ProjectStore, MigrationTracker};
+use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, TemporalStore, ProjectStore, MigrationTracker};
 use providers::{SystemProvider, NetworkProvider, ProcessProvider, HomebrewProvider, SystemUtilsProvider, OllamaProvider};
 use ws::WsServer;
 use std::path::PathBuf;
@@ -152,6 +152,10 @@ pub fn run() {
             // Now safe - won't panic on errors
             let _ = OSINTStore::new(db.conn.clone());
             eprintln!("MINA: OSINTStore initialized");
+
+            eprintln!("MINA: Initializing TemporalStore...");
+            let _ = TemporalStore::new(db.conn.clone());
+            eprintln!("MINA: TemporalStore initialized");
             
             eprintln!("MINA: Initializing ProjectStore...");
             let _ = ProjectStore::new(db.conn.clone());
@@ -315,6 +319,30 @@ pub fn run() {
             commands::osint::get_article_entities,
             commands::osint::extract_entities_from_article,
             commands::osint::fetch_full_article,
+            commands::temporal::temporal_list_events,
+            commands::temporal::temporal_get_event,
+            commands::temporal::temporal_list_event_evidence,
+            commands::temporal::temporal_rebuild_events_mvp,
+            commands::temporal::temporal_rebuild_search_index,
+            commands::temporal::temporal_search,
+            commands::temporal::temporal_list_watchlists,
+            commands::temporal::temporal_create_watchlist,
+            commands::temporal::temporal_add_watchlist_item,
+            commands::temporal::temporal_list_watchlist_items,
+            commands::temporal::temporal_create_alert_rule,
+            commands::temporal::temporal_list_alert_rules,
+            commands::temporal::temporal_list_alerts,
+            commands::temporal::temporal_ack_alert,
+            commands::temporal::temporal_snooze_alert,
+            commands::temporal::temporal_resolve_alert,
+            commands::temporal::temporal_run_backtest_mvp,
+            commands::temporal::temporal_get_entity_graph_mvp,
+            commands::temporal::temporal_create_feature_definition,
+            commands::temporal::temporal_list_feature_definitions,
+            commands::temporal::temporal_compute_feature_mvp,
+            commands::temporal::temporal_list_feature_values,
+            commands::temporal::temporal_set_alert_label,
+            commands::temporal::temporal_get_alert_label,
             commands::testing::create_test_suite,
             commands::testing::list_test_suites,
             commands::testing::save_test_result,

@@ -9,6 +9,7 @@ pub mod ai;
 pub mod automation;
 pub mod devops;
 pub mod osint;
+pub mod temporal;
 pub mod testing;
 pub mod projects;
 pub mod seed_data;
@@ -24,6 +25,22 @@ pub use ai::{AIStore, ChatMessage, Conversation, PromptTemplate};
 pub use automation::{AutomationStore, Script, Workflow, WorkflowExecution};
 pub use devops::{DevOpsStore, HealthCheck, Alert, PrometheusMetric};
 pub use osint::{OSINTStore, RSSFeed, RSSItem, Entity, EntityRelationship};
+pub use temporal::{
+    TemporalStore,
+    TemporalEvent,
+    TemporalEventEvidence,
+    Watchlist,
+    WatchlistItem,
+    AlertRule,
+    Alert as TemporalAlert,
+    BacktestReport,
+    EntityGraph,
+    EntityGraphNode,
+    EntityGraphEdge,
+    FeatureDefinition,
+    FeatureValue,
+    AlertLabel,
+};
 pub use testing::{TestingStore, TestSuite, TestResult, TestSuiteStats};
 pub use projects::{ProjectStore, Project};
 

@@ -1,7 +1,8 @@
 use crate::storage::osint::OSINTStore;
 use crate::storage::Database;
+use crate::storage::temporal::TemporalStore;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Emitter, State};
 use rusqlite::params;
 
 #[tauri::command]
@@ -64,8 +65,23 @@ pub fn save_rss_item(
 ) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = OSINTStore::new(db_guard.conn.clone());
-    store.save_rss_item(feed_id, &title, &content, &url, published_at)
-        .map_err(|e| format!("Failed to save RSS item: {}", e))
+    let article_id = store
+        .save_rss_item(feed_id, &title, &content, &url, published_at)
+        .map_err(|e| format!("Failed to save RSS item: {}", e))?;
+
+    // Lightweight entity extraction on ingest
+    let text = format!("{} {}", title, content);
+    let entities = extract_entities_enhanced(&text);
+    for (entity_type, name, confidence, context) in entities {
+        let _ = store.save_extracted_entity(article_id, &entity_type, &name, confidence, Some(&context));
+    }
+
+    // Update temporal events/search index (MVP)
+    let temporal = TemporalStore::new(db_guard.conn.clone());
+    let _ = temporal.rebuild_events_mvp(30);
+    let _ = temporal.rebuild_search_index(Some(chrono::Utc::now().timestamp() - 30 * 24 * 3600));
+
+    Ok(article_id)
 }
 
 #[tauri::command]
@@ -199,6 +215,7 @@ async fn fetch_full_article_content(url: &str) -> Option<String> {
 
 #[tauri::command]
 pub async fn fetch_rss_feeds(
+    app: tauri::AppHandle,
     db: State<'_, Mutex<Database>>,
 ) -> Result<usize, String> {
     use crate::storage::osint::OSINTStore;
@@ -333,13 +350,37 @@ pub async fn fetch_rss_feeds(
     {
         let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
         let store = OSINTStore::new(db_guard.conn.clone());
+        let temporal = TemporalStore::new(db_guard.conn.clone());
         
         for (feed_id, title, description, link, published_at) in items_to_save {
-            let _ = store.save_rss_item(feed_id, &title, &description, &link, published_at);
+            if let Ok(article_id) = store.save_rss_item(feed_id, &title, &description, &link, published_at) {
+                // Lightweight entity extraction on ingest
+                let text = format!("{} {}", title, description);
+                let entities = extract_entities_enhanced(&text);
+                for (entity_type, name, confidence, context) in entities {
+                    let _ = store.save_extracted_entity(article_id, &entity_type, &name, confidence, Some(&context));
+                }
+            }
         }
         
         for feed_id in feeds_to_update {
             let _ = store.update_feed_last_fetch(feed_id);
+        }
+
+        // Rebuild temporal events + search index (MVP)
+        let _ = temporal.rebuild_events_mvp(30);
+        let _ = temporal.rebuild_search_index(Some(chrono::Utc::now().timestamp() - 30 * 24 * 3600));
+        if let Ok(created_alerts) = temporal.evaluate_alert_rules_mvp(30, 500) {
+            for alert in created_alerts {
+                let _ = app.emit(
+                    "ws-message",
+                    serde_json::json!({
+                        "type": "temporal-alert",
+                        "data": alert,
+                        "timestamp": chrono::Utc::now().timestamp_millis()
+                    }),
+                );
+            }
         }
     }
     
