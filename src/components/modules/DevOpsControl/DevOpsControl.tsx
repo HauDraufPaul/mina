@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import Tabs from "../../ui/Tabs";
 import Modal from "../../ui/Modal";
 import { 
   Activity, 
@@ -383,29 +384,27 @@ export default function DevOpsControl() {
       </div>
 
       {/* View Toggle */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant={view === "health" ? "primary" : "secondary"}
-          onClick={() => setView("health")}
-        >
-          <Activity className="w-4 h-4 mr-2" />
-          Health Checks ({healthChecks.length})
-        </Button>
-        <Button
-          variant={view === "alerts" ? "primary" : "secondary"}
-          onClick={() => setView("alerts")}
-        >
-          <AlertCircle className="w-4 h-4 mr-2" />
-          Alerts ({activeAlertsCount})
-        </Button>
-        <Button
-          variant={view === "metrics" ? "primary" : "secondary"}
-          onClick={() => setView("metrics")}
-        >
-          <TrendingUp className="w-4 h-4 mr-2" />
-          Metrics
-        </Button>
-      </div>
+      <Tabs
+        items={[
+          {
+            id: "health",
+            label: `Health Checks (${healthChecks.length})`,
+            icon: <Activity className="w-4 h-4" />,
+          },
+          {
+            id: "alerts",
+            label: `Alerts (${activeAlertsCount})`,
+            icon: <AlertCircle className="w-4 h-4" />,
+          },
+          {
+            id: "metrics",
+            label: "Metrics",
+            icon: <TrendingUp className="w-4 h-4" />,
+          },
+        ]}
+        activeTab={view}
+        onTabChange={(tabId) => setView(tabId as "health" | "alerts" | "metrics")}
+      />
 
       {/* Health Checks View */}
       {view === "health" && (
