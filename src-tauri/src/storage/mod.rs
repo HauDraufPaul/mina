@@ -19,6 +19,9 @@ pub mod portfolio;
 pub mod economic_calendar;
 pub mod messaging;
 pub mod api_keys;
+pub mod grid_layouts;
+pub mod price_alerts;
+pub mod portfolio_performance;
 
 pub use database::{Database, ErrorRecord};
 pub use migrations::MigrationManager;
@@ -55,4 +58,7 @@ pub use market_data::{MarketDataStore, MarketPrice, PriceHistory, MarketSnapshot
 pub use portfolio::{PortfolioStore, Portfolio, Holding, Transaction};
 pub use economic_calendar::{EconomicCalendarStore, EconomicEvent, EventImpactHistory};
 pub use messaging::{MessagingStore, MessagingConversation, Message, MessageAttachment};
+pub use grid_layouts::{GridLayoutStore, GridLayoutData};
+pub use price_alerts::{PriceAlertStore, PriceAlert};
+pub use portfolio_performance::{PortfolioPerformanceStore, PortfolioSnapshot};
 

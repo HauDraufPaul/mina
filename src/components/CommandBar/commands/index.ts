@@ -5,12 +5,31 @@ import { panelCommands } from "./panels";
 import { temporalCommands } from "./temporal";
 import { stockNewsCommands } from "./stock_news";
 import { marketResearchCommands } from "./market_research";
+import { marketDataCommands } from "./market_data";
+import { portfolioCommands } from "./portfolio";
+import { alertCommands } from "./alerts";
+import { chartCommands } from "./chart";
+import { settingsCommands } from "./settings";
 
 // Registry of all commands
 const commandRegistry = new Map<string, Command>();
 
 // Register all commands
-[...navigationCommands, ...systemCommands, ...panelCommands, ...temporalCommands, ...stockNewsCommands, ...marketResearchCommands].forEach((cmd) => {
+const allCommands = [
+  ...navigationCommands,
+  ...systemCommands,
+  ...panelCommands,
+  ...temporalCommands,
+  ...stockNewsCommands,
+  ...marketResearchCommands,
+  ...marketDataCommands,
+  ...portfolioCommands,
+  ...alertCommands,
+  ...chartCommands,
+  ...settingsCommands,
+];
+
+allCommands.forEach((cmd) => {
   commandRegistry.set(cmd.name, cmd);
   if (cmd.aliases) {
     cmd.aliases.forEach((alias) => {

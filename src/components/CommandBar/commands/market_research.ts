@@ -7,7 +7,7 @@ export const marketResearchCommands: Command[] = [
     name: "temporal-events",
     description: "List temporal events for a ticker",
     aliases: ["te", "events"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[]) => {
       const ticker = args[0]?.toUpperCase();
       if (!ticker) {
         throw new Error("Usage: temporal-events <TICKER> [LAST:<days>]");
@@ -34,7 +34,6 @@ export const marketResearchCommands: Command[] = [
       );
 
       console.log(`Found ${filtered.length} events for ${ticker}:`, filtered);
-      return filtered;
     },
   },
   {
@@ -53,7 +52,6 @@ export const marketResearchCommands: Command[] = [
       });
 
       console.log(`Sentiment for ${ticker}:`, sentiment);
-      return sentiment;
     },
   },
   {
@@ -79,7 +77,6 @@ export const marketResearchCommands: Command[] = [
       });
 
       console.log(`Created alert rule: ${name} (ID: ${id})`);
-      return id;
     },
   },
   {
@@ -98,12 +95,10 @@ export const marketResearchCommands: Command[] = [
         const id = portfolios[0].id;
         const value = await invoke<any>("get_portfolio_value", { portfolioId: id });
         console.log(`Portfolio value:`, value);
-        return value;
+      } else {
+        const value = await invoke<any>("get_portfolio_value", { portfolioId });
+        console.log(`Portfolio value:`, value);
       }
-
-      const value = await invoke<any>("get_portfolio_value", { portfolioId });
-      console.log(`Portfolio value:`, value);
-      return value;
     },
   },
   {
@@ -142,7 +137,6 @@ export const marketResearchCommands: Command[] = [
       });
 
       console.log(`Found ${events.length} economic events`);
-      return events;
     },
   },
   {
@@ -162,7 +156,6 @@ export const marketResearchCommands: Command[] = [
       });
 
       console.log(`Found ${results.length} results for "${query}"`);
-      return results;
     },
   },
 ];

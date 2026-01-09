@@ -31,7 +31,6 @@ export const portfolioCommands: Command[] = [
 
       const id = await invoke<number>("create_portfolio", { name });
       console.log(`Created portfolio: ${name} (ID: ${id})`);
-      return { id, name };
     },
   },
   {
@@ -58,7 +57,6 @@ export const portfolioCommands: Command[] = [
       });
 
       console.log(`Added ${quantity} shares of ${ticker} to portfolio ${portfolioId}`);
-      return { holdingId, ticker, quantity };
     },
   },
   {
@@ -77,7 +75,6 @@ export const portfolioCommands: Command[] = [
 
       await invoke("remove_holding", { portfolioId, holdingId });
       console.log(`Removed holding ${holdingId} from portfolio ${portfolioId}`);
-      return { portfolioId, holdingId };
     },
   },
   {

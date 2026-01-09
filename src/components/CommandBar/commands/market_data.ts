@@ -16,7 +16,6 @@ export const marketDataCommands: Command[] = [
 
       const price = await invoke<any>("get_market_price", { ticker });
       console.log(`${ticker}: $${price.price?.toFixed(2) || "N/A"} (${price.changePercent?.toFixed(2) || "N/A"}%)`);
-      return price;
     },
     autocomplete: () => {
       // Could fetch popular tickers from store
@@ -40,8 +39,6 @@ export const marketDataCommands: Command[] = [
       prices.forEach((p) => {
         console.log(`${p.ticker}: $${p.price?.toFixed(2) || "N/A"} (${p.changePercent?.toFixed(2) || "N/A"}%)`);
       });
-      
-      return prices;
     },
   },
   {
@@ -70,7 +67,6 @@ export const marketDataCommands: Command[] = [
       });
 
       console.log(`Retrieved ${data.length} data points for ${ticker}`);
-      return data;
     },
     autocomplete: (args) => {
       if (args.length === 1) {
@@ -93,7 +89,6 @@ export const marketDataCommands: Command[] = [
 
       // This would add to a watchlist - placeholder for now
       console.log(`Added ${ticker} to watchlist`);
-      return { ticker, added: true };
     },
   },
   {
@@ -109,7 +104,6 @@ export const marketDataCommands: Command[] = [
       }
 
       console.log(`Removed ${ticker} from watchlist`);
-      return { ticker, removed: true };
     },
   },
 ];

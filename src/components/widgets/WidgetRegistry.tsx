@@ -4,6 +4,9 @@ import PortfolioWidget from "./PortfolioWidget";
 import CalendarWidget from "./CalendarWidget";
 import AlertsWidget from "./AlertsWidget";
 import ChartWidget from "./ChartWidget";
+import NewsWidget from "./NewsWidget";
+import SentimentWidget from "./SentimentWidget";
+import WatchlistWidget from "./WatchlistWidget";
 
 export interface WidgetConfig {
   id: string;
@@ -24,6 +27,9 @@ const widgetRegistry: Record<string, ComponentType<WidgetProps>> = {
   "calendar": CalendarWidget,
   "alerts": AlertsWidget,
   "chart": ChartWidget,
+  "news": NewsWidget,
+  "sentiment": SentimentWidget,
+  "watchlist": WatchlistWidget,
 };
 
 // Widget metadata
@@ -69,6 +75,30 @@ export const widgetMetadata: Record<string, { name: string; description: string;
       ticker: "AAPL",
       timeframe: "1d",
       showEvents: false,
+    },
+  },
+  "news": {
+    name: "News Feed",
+    description: "Display recent news items",
+    defaultConfig: {
+      ticker: null,
+      limit: 5,
+      showSentiment: true,
+    },
+  },
+  "sentiment": {
+    name: "Sentiment Analysis",
+    description: "Show sentiment scores for tickers",
+    defaultConfig: {
+      tickers: ["AAPL", "MSFT", "GOOGL"],
+      showCount: true,
+    },
+  },
+  "watchlist": {
+    name: "Watchlist",
+    description: "Quick view of ticker prices",
+    defaultConfig: {
+      tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"],
     },
   },
 };

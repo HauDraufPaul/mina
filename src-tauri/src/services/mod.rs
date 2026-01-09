@@ -12,6 +12,7 @@ pub mod embeddings;
 pub mod api_key_manager;
 pub mod market_cache;
 pub mod rate_limiter;
+pub mod price_alert_checker;
 
 pub use ticker_matcher::TickerMatcher;
 pub use news_aggregator::NewsAggregator;

@@ -1,5 +1,6 @@
 use crate::storage::portfolio::{PortfolioStore, Portfolio, Holding, Transaction};
 use crate::storage::market_data::MarketDataStore;
+use crate::storage::portfolio_performance::PortfolioPerformanceStore;
 use crate::services::portfolio_analyzer::PortfolioAnalyzer;
 use crate::storage::Database;
 use std::collections::HashMap;
@@ -116,8 +117,38 @@ pub fn get_portfolio_value(
     let portfolio_store = PortfolioStore::new(db_guard.conn.clone());
     let market_data_store = MarketDataStore::new(db_guard.conn.clone());
     
-    PortfolioAnalyzer::calculate_portfolio_value(&portfolio_store, &market_data_store, portfolio_id)
-        .map_err(|e| format!("Failed to calculate portfolio value: {}", e))
+    let value = PortfolioAnalyzer::calculate_portfolio_value(&portfolio_store, &market_data_store, portfolio_id)
+        .map_err(|e| format!("Failed to calculate portfolio value: {}", e))?;
+    
+    // Save snapshot for performance tracking
+    let performance_store = PortfolioPerformanceStore::new(db_guard.conn.clone());
+    let _ = performance_store.save_snapshot(
+        portfolio_id,
+        value.total_value,
+        value.total_cost,
+        value.total_gain_percent,
+    );
+    
+    Ok(value)
+}
+
+#[tauri::command]
+pub fn get_portfolio_performance_metrics(
+    portfolio_id: i64,
+    db: State<'_, Mutex<Database>>,
+) -> Result<crate::services::portfolio_analyzer::PortfolioPerformanceMetrics, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let portfolio_store = PortfolioStore::new(db_guard.conn.clone());
+    let market_data_store = MarketDataStore::new(db_guard.conn.clone());
+    let performance_store = PortfolioPerformanceStore::new(db_guard.conn.clone());
+    
+    PortfolioAnalyzer::calculate_performance_metrics(
+        &portfolio_store,
+        &market_data_store,
+        &performance_store,
+        portfolio_id,
+    )
+    .map_err(|e| format!("Failed to calculate performance metrics: {}", e))
 }
 
 #[tauri::command]

@@ -191,6 +191,7 @@ pub fn run() {
             // Clone connections before moving db
             let db_conn_for_escalation = db.conn.clone();
             let db_conn_for_streaming = db.conn.clone();
+            let db_conn_for_price_alerts = db.conn.clone();
             
             // Now manage the database (before it's used elsewhere)
             app.manage(Mutex::new(db));
@@ -280,6 +281,31 @@ pub fn run() {
             eprintln!("MINA: Starting alert escalation checker...");
             services::alert_escalation_checker::AlertEscalationChecker::start_periodic_checks(
                 db_for_escalation,
+                app.handle().clone(),
+            );
+            
+            // Initialize API key manager for price alerts
+            let api_key_store = storage::api_keys::APIKeyStore::new(db_conn_for_price_alerts.clone())
+                .unwrap_or_else(|e| {
+                    eprintln!("WARNING: Failed to initialize API key store: {}", e);
+                    // Return a dummy store - price alerts will work but may not use premium providers
+                    panic!("API key store initialization failed");
+                });
+            let api_key_manager = Arc::new(services::api_key_manager::APIKeyManager::new(
+                api_key_store,
+            ));
+            let rate_limiter_for_alerts = Arc::new(Mutex::new((*rate_limiter_arc).clone()));
+            let db_for_price_alerts = Arc::new(Mutex::new(Database {
+                conn: db_conn_for_price_alerts,
+            }));
+            
+            // Start price alert checker
+            eprintln!("MINA: Starting price alert checker...");
+            services::price_alert_checker::PriceAlertChecker::start_checking(
+                db_for_price_alerts,
+                ws_server.clone(),
+                api_key_manager,
+                rate_limiter_for_alerts,
                 app.handle().clone(),
             );
             
@@ -470,6 +496,7 @@ pub fn run() {
             commands::portfolio::update_holding,
             commands::portfolio::delete_holding,
             commands::portfolio::get_portfolio_value,
+            commands::portfolio::get_portfolio_performance_metrics,
             commands::portfolio::get_portfolio_impact,
             commands::portfolio::add_transaction,
             commands::portfolio::list_transactions,
@@ -492,6 +519,17 @@ pub fn run() {
             commands::api_keys::delete_api_key,
             commands::api_keys::list_api_key_providers,
             commands::api_keys::has_api_key,
+            commands::grid_layouts::create_grid_layout,
+            commands::grid_layouts::update_grid_layout,
+            commands::grid_layouts::get_grid_layout,
+            commands::grid_layouts::list_grid_layouts,
+            commands::grid_layouts::delete_grid_layout,
+            commands::grid_layouts::list_grid_layout_templates,
+            commands::price_alerts::create_price_alert,
+            commands::price_alerts::list_price_alerts,
+            commands::price_alerts::get_price_alert,
+            commands::price_alerts::update_price_alert,
+            commands::price_alerts::delete_price_alert,
             get_recent_errors,
             save_error
         ])
