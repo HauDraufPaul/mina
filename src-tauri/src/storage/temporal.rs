@@ -1521,6 +1521,13 @@ fn rule_matches_mvp(
     sources_lower: &HashSet<String>,
     event: &TemporalEvent,
 ) -> bool {
+    // Try enhanced rule engine first
+    use crate::services::alert_rule_engine::AlertRuleEngine;
+    if let Ok(result) = AlertRuleEngine::rule_matches(rule_json, haystack_lower, entities_lower, sources_lower, event) {
+        return result;
+    }
+    
+    // Fallback to legacy MVP format
     // Expected format:
     // { "any": [cond...], "all": [cond...] }
     // Each cond is { "type": "...", ... }

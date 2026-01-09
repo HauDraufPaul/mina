@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::collections::HashMap;
+use tauri::Emitter;
 
 pub struct AlertChannelSender;
 
@@ -144,9 +145,10 @@ impl AlertChannelSender {
             .await
             .context("Failed to send webhook request")?;
         
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Webhook error: {} - {}", response.status(), error_text);
+            anyhow::bail!("Webhook error: {} - {}", status, error_text);
         }
         
         Ok(())
@@ -160,20 +162,14 @@ impl AlertChannelSender {
         app: Option<tauri::AppHandle>,
     ) -> Result<()> {
         if let Some(app_handle) = app {
-            // Use Tauri's notification API
-            if let Some(window) = app_handle.get_webview_window("main") {
-                window
-                    .emit("alert-notification", serde_json::json!({
-                        "id": alert_id,
-                        "title": alert_title,
-                        "message": alert_message,
-                    }))
-                    .map_err(|e| anyhow::anyhow!("Failed to emit notification: {}", e))?;
-            }
-            
-            // Also try system notification if available
-            // Tauri v2 uses different notification API
-            // For now, just emit the event - frontend can handle desktop notifications
+            // Emit event to all windows
+            app_handle
+                .emit("alert-notification", serde_json::json!({
+                    "id": alert_id,
+                    "title": alert_title,
+                    "message": alert_message,
+                }))
+                .map_err(|e| anyhow::anyhow!("Failed to emit notification: {}", e))?;
         } else {
             // Fallback: log push
             eprintln!("[PUSH] Title: {}, Message: {}", alert_title, alert_message);

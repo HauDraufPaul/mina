@@ -2,7 +2,6 @@ use crate::storage::temporal::{TemporalStore, Alert, AlertRule, AlertEscalation}
 use crate::services::alert_channels::AlertChannelSender;
 use anyhow::Result;
 use serde_json::Value;
-use tauri::AppHandle;
 
 pub struct AlertEscalator;
 

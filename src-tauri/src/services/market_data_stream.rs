@@ -115,20 +115,27 @@ impl MarketDataStreamer {
                 if !tickers_to_fetch.is_empty() {
                     // Rate limit: only fetch if last fetch was > 1 second ago
                     let now = chrono::Utc::now().timestamp();
-                    let tickers_to_fetch_now: Vec<String> = tickers_to_fetch
-                        .into_iter()
-                        .filter(|ticker| {
-                            let last_fetch = last_fetch_time.get(ticker).copied().unwrap_or(0);
-                            now - last_fetch >= 1 // At least 1 second between fetches per ticker
-                        })
-                        .collect();
+                    let tickers_to_fetch_now: Vec<String> = {
+                        let lft = last_fetch_time.lock().unwrap();
+                        tickers_to_fetch
+                            .iter()
+                            .filter(|ticker| {
+                                let last = lft.get(*ticker).copied().unwrap_or(0);
+                                now - last >= 1 // At least 1 second between fetches per ticker
+                            })
+                            .cloned()
+                            .collect()
+                    };
 
                     if !tickers_to_fetch_now.is_empty() {
                         // Fetch prices from provider
                         if let Ok(prices) = manager.get_prices(&tickers_to_fetch_now, None).await {
                             // Update last fetch time
-                            for ticker in &tickers_to_fetch_now {
-                                last_fetch_time.insert(ticker.clone(), now);
+                            {
+                                let mut lft = last_fetch_time.lock().unwrap();
+                                for ticker in &tickers_to_fetch_now {
+                                    lft.insert(ticker.clone(), now);
+                                }
                             }
 
                             // Store in database and push to streamer

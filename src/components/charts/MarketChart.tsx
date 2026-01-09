@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, LineData, Time } from "lightweight-charts";
+import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, Time } from "lightweight-charts";
 import { invoke } from "@tauri-apps/api/core";
-import { Calendar, TrendingUp, TrendingDown } from "lucide-react";
+import { Calendar, Download } from "lucide-react";
 import Button from "../ui/Button";
+import {
+  calculateSMA,
+  calculateEMA,
+  calculateRSI,
+  calculateMACD,
+  calculateBollingerBands,
+  formatIndicatorData,
+  type IndicatorConfig,
+  type PricePoint,
+} from "./TechnicalIndicators";
 
 export interface TemporalEventMarker {
   id: number;
@@ -19,6 +29,10 @@ export interface MarketChartProps {
   showEvents?: boolean;
   height?: number;
   onEventClick?: (event: TemporalEventMarker) => void;
+  indicators?: IndicatorConfig[];
+  comparisonTickers?: string[];
+  showDrawingTools?: boolean;
+  onExport?: () => void;
 }
 
 interface OHLCVData {
@@ -35,12 +49,18 @@ export default function MarketChart({
   timeframe = "1d",
   showEvents = true,
   height = 400,
-  onEventClick,
+  onEventClick: _onEventClick,
+  indicators = [],
+  comparisonTickers = [],
+  showDrawingTools: _showDrawingTools,
+  onExport,
 }: MarketChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const indicatorSeriesRefs = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const comparisonSeriesRefs = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const eventMarkersRef = useRef<{ id: string; time: Time; position: "aboveBar" | "belowBar"; color: string; shape: "circle" | "arrowUp" | "arrowDown"; text: string }[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -75,7 +95,7 @@ export default function MarketChart({
     chartRef.current = chart;
 
     // Create candlestick series
-    const candlestickSeries = chart.addCandlestickSeries({
+    const candlestickSeries = (chart as any).addCandlestickSeries({
       upColor: "#22d3ee",
       downColor: "#f87171",
       borderVisible: false,
@@ -85,7 +105,7 @@ export default function MarketChart({
     candlestickSeriesRef.current = candlestickSeries;
 
     // Create volume series
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = (chart as any).addHistogramSeries({
       color: "#3b82f6",
       priceFormat: {
         type: "volume",
@@ -111,6 +131,8 @@ export default function MarketChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      indicatorSeriesRefs.current.clear();
+      comparisonSeriesRefs.current.clear();
       chart.remove();
     };
   }, [timeframe, height]);
@@ -158,8 +180,150 @@ export default function MarketChart({
             color: d.close >= d.open ? "rgba(34, 211, 238, 0.3)" : "rgba(248, 113, 113, 0.3)",
           }));
 
-          candlestickSeriesRef.current.setData(candlestickData);
-          volumeSeriesRef.current.setData(volumeData);
+          if (candlestickSeriesRef.current) {
+            candlestickSeriesRef.current.setData(candlestickData);
+          }
+          if (volumeSeriesRef.current) {
+            volumeSeriesRef.current.setData(volumeData);
+          }
+          
+          // Calculate and add indicators
+          if (indicators.length > 0 && chartRef.current) {
+            const pricePoints: PricePoint[] = priceDataResult.map((d) => ({
+              time: d.time,
+              close: d.close,
+              high: d.high,
+              low: d.low,
+              volume: d.volume,
+            }));
+            
+            for (const indicator of indicators) {
+              if (!indicator.visible) continue;
+              
+              let indicatorData: any[] = [];
+              let seriesKey = `${indicator.type}_${indicator.period || 20}`;
+              
+              switch (indicator.type) {
+                case "sma": {
+                  const values = calculateSMA(pricePoints, indicator.period || 20);
+                  indicatorData = formatIndicatorData(indicator, pricePoints, values);
+                  break;
+                }
+                case "ema": {
+                  const values = calculateEMA(pricePoints, indicator.period || 20);
+                  indicatorData = formatIndicatorData(indicator, pricePoints, values);
+                  break;
+                }
+                case "rsi": {
+                  const values = calculateRSI(pricePoints, indicator.period || 14);
+                  indicatorData = formatIndicatorData(indicator, pricePoints, values);
+                  // RSI should be on separate scale (0-100)
+                  seriesKey = `rsi_${indicator.period || 14}`;
+                  break;
+                }
+                case "macd": {
+                  const macdResult = calculateMACD(pricePoints);
+                  indicatorData = formatIndicatorData(indicator, pricePoints, macdResult);
+                  break;
+                }
+                case "bollinger": {
+                  const bbResult = calculateBollingerBands(pricePoints, indicator.period || 20);
+                  indicatorData = formatIndicatorData(indicator, pricePoints, bbResult);
+                  break;
+                }
+              }
+              
+              if (indicatorData.length > 0) {
+                // Get or create series
+                let series = indicatorSeriesRefs.current.get(seriesKey);
+                if (!series && chartRef.current) {
+                  if (indicator.type === "rsi") {
+                    // RSI on separate price scale
+                    (chartRef.current as any).addPriceScale("rsi");
+                    series = (chartRef.current as any).addLineSeries({
+                      color: indicator.color || "#fbbf24",
+                      lineWidth: 2,
+                      priceScaleId: "rsi",
+                      priceFormat: {
+                        type: "price",
+                        precision: 2,
+                        minMove: 0.01,
+                      },
+                    });
+                  } else if (indicator.type === "bollinger") {
+                    // Bollinger Bands need area series (simplified as lines for now)
+                    series = (chartRef.current as any).addLineSeries({
+                      color: indicator.color || "#3b82f6",
+                      lineWidth: 1,
+                      lineStyle: 2, // Dashed
+                    });
+                  } else {
+                    series = (chartRef.current as any).addLineSeries({
+                      color: indicator.color || "#22d3ee",
+                      lineWidth: 2,
+                    });
+                  }
+                  if (series) {
+                    indicatorSeriesRefs.current.set(seriesKey, series);
+                  }
+                }
+                
+                const finalSeries = indicatorSeriesRefs.current.get(seriesKey);
+                if (finalSeries && indicatorData.length > 0) {
+                  const formattedData = indicatorData.map((d) => ({
+                    time: d.time as Time,
+                    value: d.value || d.upper || d.middle || d.lower || 0,
+                  }));
+                  series.setData(formattedData);
+                }
+              }
+            }
+          }
+          
+          // Load comparison tickers
+          if (comparisonTickers.length > 0 && chartRef.current) {
+            for (const compTicker of comparisonTickers) {
+              if (compTicker === ticker) continue;
+              
+              try {
+                const compData = await invoke<OHLCVData[]>("get_chart_data", {
+                  ticker: compTicker,
+                  fromTs,
+                  toTs: now,
+                  interval: timeframe,
+                });
+                
+                if (compData && compData.length > 0) {
+                  // Normalize to percentage change for comparison
+                  const firstPrice = compData[0].close;
+                  const normalizedData = compData.map((d) => ({
+                    time: d.time as Time,
+                    value: ((d.close - firstPrice) / firstPrice) * 100,
+                  }));
+                  
+                  let compSeries = comparisonSeriesRefs.current.get(compTicker);
+                  if (!compSeries && chartRef.current) {
+                    compSeries = (chartRef.current as any).addLineSeries({
+                      color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+                      lineWidth: 1,
+                      lineStyle: 1, // Dotted
+                      title: compTicker,
+                    });
+                    if (compSeries) {
+                      comparisonSeriesRefs.current.set(compTicker, compSeries);
+                    }
+                  }
+                  
+                  const finalCompSeries = comparisonSeriesRefs.current.get(compTicker);
+                  if (finalCompSeries && normalizedData.length > 0) {
+                    finalCompSeries.setData(normalizedData);
+                  }
+                }
+              } catch (err) {
+                console.error(`Failed to load comparison data for ${compTicker}:`, err);
+              }
+            }
+          }
         }
 
         // Load temporal events if enabled
@@ -189,7 +353,9 @@ export default function MarketChart({
             });
 
             eventMarkersRef.current = markers;
-            candlestickSeriesRef.current.setMarkers(markers);
+            if (candlestickSeriesRef.current) {
+              (candlestickSeriesRef.current as any).setMarkers(markers);
+            }
           }
         }
       } catch (err) {
@@ -201,7 +367,30 @@ export default function MarketChart({
     };
 
     loadData();
-  }, [ticker, timeframe, showEvents]);
+  }, [ticker, timeframe, showEvents, indicators, comparisonTickers]);
+  
+  // Handle export
+  const handleExport = () => {
+    if (!chartRef.current) return;
+    
+    // Export as PNG
+    try {
+      const canvas = (chartRef.current as any).takeScreenshot();
+      if (canvas) {
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.download = `${ticker}_${timeframe}_${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (err) {
+      console.error("Failed to export chart:", err);
+    }
+    
+    if (onExport) {
+      onExport();
+    }
+  };
 
   if (!ticker) {
     return (
@@ -237,6 +426,11 @@ export default function MarketChart({
                 ${priceData[priceData.length - 1].close.toFixed(2)}
               </span>
             </div>
+          )}
+          {onExport && (
+            <Button variant="secondary" onClick={handleExport} className="!px-2 !py-1">
+              <Download className="w-4 h-4" />
+            </Button>
           )}
         </div>
       </div>
