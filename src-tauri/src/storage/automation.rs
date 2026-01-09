@@ -97,6 +97,27 @@ impl AutomationStore {
             [],
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS workflow_step_executions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id INTEGER NOT NULL,
+                step_index INTEGER NOT NULL,
+                step_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                completed_at INTEGER,
+                error TEXT,
+                output_json TEXT,
+                FOREIGN KEY (execution_id) REFERENCES workflow_executions(id)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_step_executions_execution ON workflow_step_executions(execution_id)",
+            [],
+        )?;
+
         Ok(())
     }
 
@@ -112,6 +133,29 @@ impl AutomationStore {
         )?;
 
         Ok(conn.last_insert_rowid())
+    }
+
+    pub fn get_script(&self, id: i64) -> Result<Option<Script>> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        
+        let script = conn.query_row(
+            "SELECT id, name, content, language, created_at, updated_at, enabled FROM scripts WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(Script {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    content: row.get(2)?,
+                    language: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                    enabled: row.get::<_, i64>(6)? == 1,
+                })
+            },
+        ).optional()?;
+
+        Ok(script)
     }
 
     pub fn list_scripts(&self) -> Result<Vec<Script>> {
@@ -140,29 +184,26 @@ impl AutomationStore {
         Ok(scripts)
     }
 
-    pub fn get_script(&self, id: i64) -> Result<Option<Script>> {
+    pub fn update_script(&self, id: i64, name: &str, content: &str, language: &str) -> Result<()> {
         let conn = self.conn.lock()
             .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
-        
-        let script: Option<Script> = conn
-            .query_row(
-                "SELECT id, name, content, language, created_at, updated_at, enabled FROM scripts WHERE id = ?1",
-                params![id],
-                |row| {
-                    Ok(Script {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        content: row.get(2)?,
-                        language: row.get(3)?,
-                        created_at: row.get(4)?,
-                        updated_at: row.get(5)?,
-                        enabled: row.get::<_, i64>(6)? == 1,
-                    })
-                },
-            )
-            .optional()?;
+        let now = chrono::Utc::now().timestamp();
 
-        Ok(script)
+        conn.execute(
+            "UPDATE scripts SET name = ?1, content = ?2, language = ?3, updated_at = ?4 WHERE id = ?5",
+            params![name, content, language, now, id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn delete_script(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+
+        conn.execute("DELETE FROM scripts WHERE id = ?1", params![id])?;
+
+        Ok(())
     }
 
     pub fn create_workflow(
@@ -184,6 +225,68 @@ impl AutomationStore {
         )?;
 
         Ok(conn.last_insert_rowid())
+    }
+
+    pub fn update_workflow(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        description: Option<&str>,
+        trigger_type: Option<&str>,
+        trigger_config: Option<&str>,
+        steps: Option<&str>,
+        enabled: Option<bool>,
+    ) -> Result<()> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+
+        // Build update query dynamically - execute individual updates
+        if let Some(n) = name {
+            conn.execute("UPDATE workflows SET name = ?1 WHERE id = ?2", params![n, id])?;
+        }
+        if let Some(d) = description {
+            conn.execute("UPDATE workflows SET description = ?1 WHERE id = ?2", params![d, id])?;
+        }
+        if let Some(tt) = trigger_type {
+            conn.execute("UPDATE workflows SET trigger_type = ?1 WHERE id = ?2", params![tt, id])?;
+        }
+        if let Some(tc) = trigger_config {
+            conn.execute("UPDATE workflows SET trigger_config = ?1 WHERE id = ?2", params![tc, id])?;
+        }
+        if let Some(s) = steps {
+            conn.execute("UPDATE workflows SET steps = ?1 WHERE id = ?2", params![s, id])?;
+        }
+        if let Some(e) = enabled {
+            let enabled_val = if e { 1 } else { 0 };
+            conn.execute("UPDATE workflows SET enabled = ?1 WHERE id = ?2", params![enabled_val, id])?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_workflow(&self, id: i64) -> Result<Option<Workflow>> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        
+        let workflow = conn.query_row(
+            "SELECT id, name, description, trigger_type, trigger_config, steps, created_at, enabled
+             FROM workflows WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(Workflow {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    trigger_type: row.get(3)?,
+                    trigger_config: row.get(4)?,
+                    steps: row.get(5)?,
+                    created_at: row.get(6)?,
+                    enabled: row.get::<_, i64>(7)? == 1,
+                })
+            },
+        ).optional()?;
+
+        Ok(workflow)
     }
 
     pub fn list_workflows(&self) -> Result<Vec<Workflow>> {
@@ -286,6 +389,7 @@ impl AutomationStore {
                 executions.push(row?);
             }
         }
+
         Ok(executions)
     }
 }

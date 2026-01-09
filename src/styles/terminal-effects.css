@@ -63,44 +63,39 @@
   font-size: 0.75rem;
 }
 
-/* Phosphor Glow */
+/* Phosphor Glow - Reduced intensity for professional look */
 .phosphor-glow {
   text-shadow: 
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 30px currentColor;
+    0 0 2px currentColor,
+    0 0 4px currentColor;
 }
 
 .phosphor-glow-cyan {
   color: var(--neon-cyan);
   text-shadow: 
-    0 0 10px var(--neon-cyan),
-    0 0 20px var(--neon-cyan),
-    0 0 30px var(--neon-cyan);
+    0 0 2px rgba(0, 217, 255, 0.5),
+    0 0 4px rgba(0, 217, 255, 0.3);
 }
 
 .phosphor-glow-green {
   color: var(--neon-green);
   text-shadow: 
-    0 0 10px var(--neon-green),
-    0 0 20px var(--neon-green),
-    0 0 30px var(--neon-green);
+    0 0 2px rgba(0, 255, 136, 0.5),
+    0 0 4px rgba(0, 255, 136, 0.3);
 }
 
 .phosphor-glow-amber {
   color: var(--neon-amber);
   text-shadow: 
-    0 0 10px var(--neon-amber),
-    0 0 20px var(--neon-amber),
-    0 0 30px var(--neon-amber);
+    0 0 2px rgba(255, 176, 0, 0.5),
+    0 0 4px rgba(255, 176, 0, 0.3);
 }
 
 .phosphor-glow-red {
   color: var(--neon-red);
   text-shadow: 
-    0 0 10px var(--neon-red),
-    0 0 20px var(--neon-red),
-    0 0 30px var(--neon-red);
+    0 0 2px rgba(255, 45, 85, 0.5),
+    0 0 4px rgba(255, 45, 85, 0.3);
 }
 
 /* Status Indicators */
@@ -114,17 +109,17 @@
 
 .status-dot.online {
   background: var(--neon-green);
-  box-shadow: 0 0 10px var(--neon-green);
+  box-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
 }
 
 .status-dot.offline {
   background: var(--neon-red);
-  box-shadow: 0 0 10px var(--neon-red);
+  box-shadow: 0 0 4px rgba(255, 45, 85, 0.4);
 }
 
 .status-dot.warning {
   background: var(--neon-amber);
-  box-shadow: 0 0 10px var(--neon-amber);
+  box-shadow: 0 0 4px rgba(255, 176, 0, 0.4);
 }
 
 @keyframes pulse {

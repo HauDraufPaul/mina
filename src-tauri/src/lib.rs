@@ -145,6 +145,45 @@ pub fn run() {
                 eprintln!("MINA: AutomationStore initialized");
             }
             
+            // Initialize automation services
+            eprintln!("MINA: Initializing automation services...");
+            let app_handle = app.handle();
+            let db_arc = Arc::new(Mutex::new(Database {
+                conn: db.conn.clone(),
+            }));
+            let script_engine = Arc::new(crate::services::ScriptEngine::new(db_arc.clone(), app_handle.clone()));
+            let workflow_engine = Arc::new(crate::services::WorkflowEngine::new(db_arc.clone(), app_handle.clone()));
+            let scheduler = Arc::new(crate::services::WorkflowScheduler::new(
+                db_arc.clone(),
+                workflow_engine.clone(),
+                app_handle.clone(),
+            ));
+            let event_bus = Arc::new(crate::services::AutomationEventBus::new(
+                db_arc.clone(),
+                workflow_engine.clone(),
+                app_handle.clone(),
+            ));
+            
+            // Start scheduler
+            scheduler.start();
+            eprintln!("MINA: Automation services initialized");
+            
+            // Store event bus in app state for use by other services
+            app.manage(event_bus.clone());
+            eprintln!("MINA: Event bridge ready (events will be forwarded from emission points)");
+            
+            // Start script bridge server for Deno script command invocation
+            let script_bridge = crate::services::ScriptBridgeServer::new(app_handle.clone(), 1421);
+            let bridge_for_spawn = script_bridge.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = bridge_for_spawn.start().await {
+                    eprintln!("WARNING: Failed to start script bridge server: {}", e);
+                } else {
+                    eprintln!("MINA: Script bridge server started on port 1421");
+                }
+            });
+            app.manage(script_bridge);
+            
             eprintln!("MINA: Initializing DevOpsStore...");
             let _ = DevOpsStore::new(db.conn.clone());
             eprintln!("MINA: DevOpsStore initialized");
@@ -303,12 +342,14 @@ pub fn run() {
             
             // Start price alert checker
             eprintln!("MINA: Starting price alert checker...");
+            // Start price alert checker with event bus integration
             services::price_alert_checker::PriceAlertChecker::start_checking(
                 db_for_price_alerts,
                 ws_server.clone(),
                 api_key_manager.clone(),
                 rate_limiter_for_alerts,
                 app.handle().clone(),
+                Some(event_bus.clone()),
             );
             
             eprintln!("MINA: Setup complete, showing window...");
@@ -399,13 +440,20 @@ pub fn run() {
             commands::automation::create_script,
             commands::automation::list_scripts,
             commands::automation::get_script,
+            commands::automation::update_script,
+            commands::automation::delete_script,
+            commands::automation::execute_script,
+            commands::automation::execute_workflow,
             commands::automation::create_workflow,
             commands::automation::list_workflows,
+            commands::automation::get_workflow,
+            commands::automation::update_workflow,
             commands::automation::record_workflow_execution,
             commands::automation::get_workflow_executions,
             commands::devops::create_health_check,
             commands::devops::update_health_check,
             commands::devops::list_health_checks,
+            commands::devops::init_default_health_checks,
             commands::devops::create_alert,
             commands::devops::list_alerts,
             commands::devops::resolve_alert,

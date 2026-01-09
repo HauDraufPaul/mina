@@ -10,7 +10,7 @@
 
 .glass-card:hover {
   border-color: var(--neon-cyan);
-  box-shadow: 0 8px 32px rgba(0, 217, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 217, 255, 0.08);
   transform: translateY(-2px);
 }
 
@@ -32,22 +32,22 @@
 
 .glass-button:hover:not(:disabled) {
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.15);
   color: var(--neon-cyan);
   transform: translateY(-1px);
 }
 
 .glass-button:active:not(:disabled) {
   transform: scale(0.98) translateY(0);
-  box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 6px rgba(0, 217, 255, 0.12);
 }
 
 .glass-button:focus-visible {
   outline: none;
   box-shadow: 
     0 0 0 2px #0a0a0a,
-    0 0 0 4px rgba(0, 217, 255, 0.5),
-    0 0 20px rgba(0, 217, 255, 0.3);
+    0 0 0 4px rgba(0, 217, 255, 0.3),
+    0 0 8px rgba(0, 217, 255, 0.15);
 }
 
 .glass-button-primary {
@@ -57,22 +57,22 @@
 }
 
 .glass-button-primary:hover:not(:disabled) {
-  background: rgba(0, 217, 255, 0.2);
-  box-shadow: 0 0 30px rgba(0, 217, 255, 0.4);
+  background: rgba(0, 217, 255, 0.15);
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
   transform: translateY(-1px);
 }
 
 .glass-button-primary:active:not(:disabled) {
   transform: scale(0.98) translateY(0);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.15);
 }
 
 .glass-button-primary:focus-visible {
   outline: none;
   box-shadow: 
     0 0 0 2px #0a0a0a,
-    0 0 0 4px rgba(0, 217, 255, 0.6),
-    0 0 30px rgba(0, 217, 255, 0.4);
+    0 0 0 4px rgba(0, 217, 255, 0.4),
+    0 0 10px rgba(0, 217, 255, 0.2);
 }
 
 .glass-button-disabled,
@@ -106,7 +106,7 @@
 .glass-input:focus {
   outline: none;
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.12);
 }
 
 .glass-input::placeholder {
@@ -147,34 +147,34 @@
   outline: none;
   box-shadow: 
     0 0 0 2px #0a0a0a,
-    0 0 0 4px rgba(0, 217, 255, 0.5),
-    0 0 20px rgba(0, 217, 255, 0.3);
+    0 0 0 4px rgba(0, 217, 255, 0.3),
+    0 0 8px rgba(0, 217, 255, 0.15);
 }
 
 .glass-tab-active {
-  background: rgba(0, 217, 255, 0.2);
+  background: rgba(0, 217, 255, 0.15);
   border-color: var(--neon-cyan);
   color: var(--neon-cyan);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.12);
 }
 
 .glass-tab-active:hover {
-  background: rgba(0, 217, 255, 0.25);
-  box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+  background: rgba(0, 217, 255, 0.18);
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.15);
   transform: translateY(-1px);
 }
 
 .glass-tab-active:active {
   transform: scale(0.98) translateY(0);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.12);
 }
 
 .glass-tab-active:focus-visible {
   outline: none;
   box-shadow: 
     0 0 0 2px #0a0a0a,
-    0 0 0 4px rgba(0, 217, 255, 0.6),
-    0 0 30px rgba(0, 217, 255, 0.4);
+    0 0 0 4px rgba(0, 217, 255, 0.4),
+    0 0 10px rgba(0, 217, 255, 0.2);
 }
 
 .glass-tab-inactive {

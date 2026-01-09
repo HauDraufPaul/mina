@@ -63,6 +63,59 @@ export default function DevOpsControl() {
   const [newAlertSeverity, setNewAlertSeverity] = useState("warning");
   const [newAlertMessage, setNewAlertMessage] = useState("");
   const [newAlertSource, setNewAlertSource] = useState("");
+  const [showAlertTemplates, setShowAlertTemplates] = useState(false);
+
+  // Alert templates
+  const alertTemplates = [
+    {
+      name: "High CPU Usage",
+      severity: "warning",
+      message: "CPU usage has exceeded 80% for the past 5 minutes. Current usage: {value}%",
+      source: "System Monitor",
+    },
+    {
+      name: "High Memory Usage",
+      severity: "warning",
+      message: "Memory usage has exceeded 85%. Current usage: {value}%",
+      source: "System Monitor",
+    },
+    {
+      name: "Disk Space Low",
+      severity: "critical",
+      message: "Disk space is running low. Only {value}% free space remaining on {disk}",
+      source: "System Monitor",
+    },
+    {
+      name: "Service Down",
+      severity: "critical",
+      message: "Service {service} is not responding. Health check failed after {attempts} attempts.",
+      source: "Health Check",
+    },
+    {
+      name: "Database Connection Failed",
+      severity: "critical",
+      message: "Failed to establish connection to database. Error: {error}",
+      source: "Database",
+    },
+    {
+      name: "API Rate Limit Exceeded",
+      severity: "warning",
+      message: "API rate limit exceeded for provider {provider}. Limit: {limit} requests per {period}",
+      source: "Rate Limiter",
+    },
+    {
+      name: "Slow Response Time",
+      severity: "warning",
+      message: "Response time for {endpoint} is {time}ms, exceeding threshold of {threshold}ms",
+      source: "API Gateway",
+    },
+    {
+      name: "Error Rate Spike",
+      severity: "critical",
+      message: "Error rate has spiked to {rate}% in the last {period}. Normal rate: {normal}%",
+      source: "Error Monitor",
+    },
+  ];
 
   // Response time history for charts
   const [responseTimeHistory, setResponseTimeHistory] = useState<Map<number, number[]>>(new Map());
@@ -428,14 +481,31 @@ export default function DevOpsControl() {
               <div className="text-center py-12 text-gray-400">
                 <Server className="w-16 h-16 mx-auto mb-4 text-gray-500" />
                 <p className="text-lg mb-2">No health checks configured</p>
-                <p className="text-sm mb-4">Create your first health check to start monitoring services</p>
-                <Button
-                  variant="primary"
-                  onClick={() => setShowHealthCheckModal(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Health Check
-                </Button>
+                <p className="text-sm mb-4">Default health checks will be created automatically on first run, or create your own</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      try {
+                        await invoke("init_default_health_checks");
+                        await loadData();
+                        errorHandler.showSuccess("Default health checks initialized");
+                      } catch (error) {
+                        errorHandler.showError("Failed to initialize default health checks", error);
+                      }
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Default Health Checks
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowHealthCheckModal(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Custom Health Check
+                  </Button>
+                </div>
               </div>
             </Card>
           ) : (
@@ -752,10 +822,57 @@ export default function DevOpsControl() {
           setNewAlertMessage("");
           setNewAlertSource("");
           setNewAlertSeverity("warning");
+          setShowAlertTemplates(false);
         }}
         title="Create Alert"
       >
         <div className="space-y-4">
+          {/* Template Selector */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-300">
+                Use Template
+              </label>
+              <Button
+                variant="secondary"
+                onClick={() => setShowAlertTemplates(!showAlertTemplates)}
+                className="text-xs"
+              >
+                {showAlertTemplates ? "Hide" : "Show"} Templates
+              </Button>
+            </div>
+            {showAlertTemplates && (
+              <div className="mb-4 p-3 glass-card rounded border border-white/10 max-h-48 overflow-y-auto">
+                <div className="space-y-2">
+                  {alertTemplates.map((template, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setNewAlertName(template.name);
+                        setNewAlertSeverity(template.severity);
+                        setNewAlertMessage(template.message);
+                        setNewAlertSource(template.source);
+                        setShowAlertTemplates(false);
+                      }}
+                      className="w-full text-left p-2 rounded hover:bg-white/5 border border-white/5 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">{template.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          template.severity === "critical" ? "bg-neon-red/20 text-neon-red" :
+                          template.severity === "warning" ? "bg-neon-amber/20 text-neon-amber" :
+                          "bg-neon-cyan/20 text-neon-cyan"
+                        }`}>
+                          {template.severity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1 truncate">{template.message}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Alert Name

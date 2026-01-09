@@ -16,8 +16,23 @@ pub mod price_alert_checker;
 pub mod global_search;
 pub mod desktop_notifications;
 pub mod data_export;
+pub mod script_engine;
+pub mod workflow_engine;
+pub mod workflow_scheduler;
+pub mod automation_event_bus;
+pub mod event_bridge;
+pub mod command_dispatcher;
+pub mod script_bridge;
+
+pub use event_bridge::EventBridge;
+pub use command_dispatcher::CommandDispatcher;
+pub use script_bridge::ScriptBridgeServer;
 
 pub use ticker_matcher::TickerMatcher;
+pub use script_engine::{ScriptEngine, ScriptExecutionResult};
+pub use workflow_engine::{WorkflowEngine, WorkflowStep, WorkflowContext};
+pub use workflow_scheduler::WorkflowScheduler;
+pub use automation_event_bus::{AutomationEventBus, AutomationEvent};
 pub use desktop_notifications::{DesktopNotificationService, NotificationOptions};
 pub use global_search::{GlobalSearchService, SearchResult, SearchSource};
 pub use news_aggregator::NewsAggregator;

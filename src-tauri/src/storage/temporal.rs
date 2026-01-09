@@ -308,6 +308,81 @@ impl TemporalStore {
             "CREATE INDEX IF NOT EXISTS idx_temporal_events_start_ts ON temporal_events(start_ts)",
             [],
         )?;
+        // Migration: Ensure alerts table has required columns
+        // Check if alerts table exists and verify its schema
+        let table_exists: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='alerts'",
+            [],
+            |row| Ok(row.get::<_, i64>(0)? > 0),
+        ).unwrap_or(false);
+        
+        if table_exists {
+            // Get existing columns
+            let mut stmt = conn.prepare("SELECT name FROM pragma_table_info('alerts')")?;
+            let columns: Vec<String> = stmt.query_map([], |row| {
+                Ok(row.get::<_, String>(0)?)
+            })?.collect::<Result<Vec<_>, _>>()?;
+            
+            let needs_migration = !columns.contains(&"rule_id".to_string()) || 
+                                  !columns.contains(&"fired_at".to_string());
+            
+            if needs_migration {
+                // Table exists but has old schema - recreate it
+                // Drop dependent objects first
+                conn.execute("DROP INDEX IF EXISTS idx_alerts_fired_at", [])?;
+                conn.execute("DROP TABLE IF EXISTS alert_labels", [])?;
+                conn.execute("DROP TABLE IF EXISTS alert_escalations", [])?;
+                
+                // Recreate alerts table with correct schema
+                conn.execute("DROP TABLE IF EXISTS alerts", [])?;
+                conn.execute(
+                    "CREATE TABLE alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rule_id INTEGER NOT NULL,
+                        fired_at INTEGER NOT NULL,
+                        event_id INTEGER,
+                        payload_json TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'new',
+                        snoozed_until INTEGER,
+                        FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE,
+                        FOREIGN KEY (event_id) REFERENCES temporal_events(id) ON DELETE SET NULL
+                    )",
+                    [],
+                )?;
+                
+                // Recreate dependent tables
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS alert_labels (
+                        alert_id INTEGER PRIMARY KEY,
+                        label INTEGER NOT NULL,
+                        note TEXT,
+                        created_at INTEGER NOT NULL,
+                        FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE
+                    )",
+                    [],
+                )?;
+                
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS alert_escalations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        alert_id INTEGER NOT NULL,
+                        escalated_at INTEGER NOT NULL,
+                        escalation_level INTEGER NOT NULL,
+                        channel TEXT NOT NULL,
+                        sent INTEGER NOT NULL DEFAULT 0,
+                        error_message TEXT,
+                        FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE
+                    )",
+                    [],
+                )?;
+                
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_escalations_alert ON alert_escalations(alert_id)",
+                    [],
+                )?;
+            }
+        }
+
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_alerts_fired_at ON alerts(fired_at)",
             [],

@@ -180,11 +180,9 @@ impl NewsAggregator {
     }
 
     /// Start real-time news streaming
-    pub async fn start_realtime_stream(&self, app: AppHandle) -> Result<()> {
+    pub async fn start_realtime_stream(&self, app: AppHandle, api_key_manager: Option<std::sync::Arc<crate::services::api_key_manager::APIKeyManager>>) -> Result<()> {
         let store = self.store.clone();
-        let ticker_matcher = self.ticker_matcher.clone();
-        let providers = self.providers.iter().map(|p| p.get_name().to_string()).collect::<Vec<_>>();
-
+        
         // Spawn a background task that polls RSS feeds
         tauri::async_runtime::spawn(async move {
             let mut last_fetch_time = chrono::Utc::now().timestamp();
@@ -195,22 +193,24 @@ impl NewsAggregator {
 
                 eprintln!("NewsAggregator: Polling RSS feeds...");
 
-                // Fetch news since last fetch
-                // Note: API key manager would need to be passed here if available
-                // For now, use None - providers will skip if no key
-                let aggregator = {
-                    match store.lock() {
-                        Ok(_guard) => {},
-                        Err(e) => {
-                            eprintln!("Failed to lock store: {}", e);
-                            continue;
+                // Create aggregator with API keys if available
+                let aggregator = match api_key_manager.as_ref() {
+                    Some(key_mgr) => {
+                        match NewsAggregator::new_with_api_keys(store.clone(), Some(key_mgr.as_ref())) {
+                            Ok(agg) => agg,
+                            Err(e) => {
+                                eprintln!("Failed to create news aggregator with API keys: {}", e);
+                                continue;
+                            }
                         }
                     }
-                    match NewsAggregator::new(store.clone()) {
-                        Ok(agg) => agg,
-                        Err(e) => {
-                            eprintln!("Failed to create news aggregator: {}", e);
-                            continue;
+                    None => {
+                        match NewsAggregator::new(store.clone()) {
+                            Ok(agg) => agg,
+                            Err(e) => {
+                                eprintln!("Failed to create news aggregator: {}", e);
+                                continue;
+                            }
                         }
                     }
                 };
@@ -219,8 +219,9 @@ impl NewsAggregator {
                     Ok(new_items) => {
                         eprintln!("NewsAggregator: Found {} new items", new_items.len());
 
+                        // News items are already saved by process_news_item in fetch_all_news
+                        // Emit events for new news items
                         if !new_items.is_empty() {
-                            // Emit events for new news items
                             for item in &new_items {
                                 let _ = app.emit(
                                     "ws-message",

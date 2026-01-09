@@ -3,8 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Tabs from "../../ui/Tabs";
+import Modal from "../../ui/Modal";
 import { useErrorHandler, validateInput } from "@/utils/errorHandler";
-import { Code, Play, Save, List, Workflow, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Code, Play, Save, List, Workflow, Clock, CheckCircle, XCircle, Plus, Edit } from "lucide-react";
+import WorkflowEditor from "./WorkflowEditor";
+import { realtimeService } from "@/services/realtimeService";
 
 interface Script {
   id: number;
@@ -47,9 +50,44 @@ export default function AutomationCircuit() {
   const [scriptLanguage, setScriptLanguage] = useState("javascript");
   const [view, setView] = useState<"scripts" | "workflows" | "executions">("scripts");
   const [loading, setLoading] = useState(true);
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [workflowName, setWorkflowName] = useState("");
+  const [workflowDescription, setWorkflowDescription] = useState("");
+  const [workflowTriggerType, setWorkflowTriggerType] = useState("manual");
+  const [workflowTriggerConfig, setWorkflowTriggerConfig] = useState("{}");
+  const [executionOutput, setExecutionOutput] = useState<{
+    success: boolean;
+    data: any;
+    stdout: string;
+    stderr: string;
+    executionTimeMs: number;
+    error?: string;
+  } | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const [showWorkflowEditor, setShowWorkflowEditor] = useState(false);
 
   useEffect(() => {
     loadData();
+    
+    // Set up real-time execution updates via WebSocket
+    const unsubscribe = realtimeService.subscribe("workflow-execution", (data: unknown) => {
+      const execution = data as WorkflowExecution;
+      setExecutions((prev) => {
+        const existing = prev.findIndex((e) => e.id === execution.id);
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = execution;
+          return updated;
+        } else {
+          return [execution, ...prev].slice(0, 20);
+        }
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const loadData = async () => {
@@ -72,7 +110,7 @@ export default function AutomationCircuit() {
     }
   };
 
-  const handleCreateScript = async () => {
+  const handleSaveScript = async () => {
     const trimmedName = scriptName.trim();
     
     if (!validateInput(trimmedName, { required: true }, errorHandler)) {
@@ -87,17 +125,169 @@ export default function AutomationCircuit() {
     }
 
     try {
-      await invoke("create_script", {
-        name: trimmedName,
-        content: scriptContent || "// Your code here",
-        language: scriptLanguage,
-      });
-      errorHandler.showSuccess("Script created successfully");
-      setScriptName("");
-      setScriptContent("");
+      if (selectedScript) {
+        // Update existing script
+        await invoke("update_script", {
+          id: selectedScript.id,
+          name: trimmedName,
+          content: scriptContent || "// Your code here",
+          language: scriptLanguage,
+        });
+        errorHandler.showSuccess("Script updated successfully");
+      } else {
+        // Create new script
+        await invoke("create_script", {
+          name: trimmedName,
+          content: scriptContent || "// Your code here",
+          language: scriptLanguage,
+        });
+        errorHandler.showSuccess("Script created successfully");
+        setScriptName("");
+        setScriptContent("");
+      }
       await loadData();
     } catch (error) {
-      errorHandler.showError("Failed to create script", error);
+      errorHandler.showError(selectedScript ? "Failed to update script" : "Failed to create script", error);
+    }
+  };
+
+  const handleDeleteScript = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this script?")) {
+      return;
+    }
+
+    try {
+      await invoke("delete_script", { id });
+      errorHandler.showSuccess("Script deleted successfully");
+      if (selectedScript?.id === id) {
+        setSelectedScript(null);
+        setScriptName("");
+        setScriptContent("");
+      }
+      await loadData();
+    } catch (error) {
+      errorHandler.showError("Failed to delete script", error);
+    }
+  };
+
+  const handleRunScript = async () => {
+    if (!selectedScript) {
+      errorHandler.showError("Please select a script to run", new Error("No script selected"));
+      return;
+    }
+
+    setIsExecuting(true);
+    setExecutionOutput(null);
+
+    try {
+      const result = await invoke<{
+        success: boolean;
+        data: any;
+        stdout: string;
+        stderr: string;
+        execution_time_ms: number;
+        error?: string;
+      }>("execute_script", {
+        scriptId: selectedScript.id,
+        inputs: null,
+      });
+
+      setExecutionOutput({
+        success: result.success,
+        data: result.data,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        executionTimeMs: result.execution_time_ms,
+        error: result.error,
+      });
+
+      if (result.success) {
+        errorHandler.showSuccess(`Script executed successfully in ${result.execution_time_ms}ms`);
+      } else {
+        errorHandler.showError("Script execution failed", new Error(result.error || "Unknown error"));
+      }
+    } catch (error) {
+      errorHandler.showError("Failed to run script", error);
+      setExecutionOutput({
+        success: false,
+        data: null,
+        stdout: "",
+        stderr: "",
+        executionTimeMs: 0,
+        error: String(error),
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleCreateWorkflow = async () => {
+    const trimmedName = workflowName.trim();
+    
+    if (!validateInput(trimmedName, { required: true }, errorHandler)) {
+      return;
+    }
+
+    try {
+      await invoke("create_workflow", {
+        name: trimmedName,
+        description: workflowDescription.trim() || null,
+        triggerType: workflowTriggerType,
+        triggerConfig: workflowTriggerConfig,
+        steps: "[]", // Empty steps array for now
+      });
+      errorHandler.showSuccess("Workflow created successfully");
+      setShowWorkflowModal(false);
+      setWorkflowName("");
+      setWorkflowDescription("");
+      setWorkflowTriggerType("manual");
+      setWorkflowTriggerConfig("{}");
+      await loadData();
+    } catch (error) {
+      errorHandler.showError("Failed to create workflow", error);
+    }
+  };
+
+  const handleExecuteWorkflow = async (workflowId: number) => {
+    try {
+      const executionId = await invoke<number>("execute_workflow", {
+        workflowId,
+        triggerData: null,
+      });
+      
+      errorHandler.showSuccess(`Workflow execution started (ID: ${executionId})`);
+      await loadData();
+    } catch (error) {
+      errorHandler.showError("Failed to execute workflow", error);
+    }
+  };
+
+  const handleEditWorkflow = async (workflowId: number) => {
+    try {
+      const workflow = await invoke<Workflow | null>("get_workflow", { id: workflowId });
+      if (workflow) {
+        setSelectedWorkflow(workflow);
+        setShowWorkflowEditor(true);
+      }
+    } catch (error) {
+      errorHandler.showError("Failed to load workflow", error);
+    }
+  };
+
+  const handleSaveWorkflow = async (steps: any[]) => {
+    if (!selectedWorkflow) return;
+
+    try {
+      await invoke("update_workflow", {
+        id: selectedWorkflow.id,
+        steps: JSON.stringify(steps),
+      });
+      errorHandler.showSuccess("Workflow updated successfully");
+      setShowWorkflowEditor(false);
+      setSelectedWorkflow(null);
+      await loadData();
+    } catch (error) {
+      errorHandler.showError("Failed to save workflow", error);
     }
   };
 
@@ -173,24 +363,47 @@ export default function AutomationCircuit() {
           <div className="lg:col-span-1">
             <Card title="Scripts">
               <div className="space-y-2">
-                <Button variant="primary" className="w-full" onClick={handleCreateScript}>
+                <Button 
+                  variant="primary" 
+                  className="w-full" 
+                  onClick={() => {
+                    setSelectedScript(null);
+                    setScriptName("");
+                    setScriptContent("");
+                    setScriptLanguage("javascript");
+                    setExecutionOutput(null);
+                  }}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   New Script
                 </Button>
                 <div className="space-y-1 max-h-96 overflow-y-auto">
                   {scripts.map((script) => (
-                    <button
+                    <div
                       key={script.id}
-                      onClick={() => handleSelectScript(script.id)}
-                      className={`w-full text-left p-2 rounded glass-card transition-all ${
+                      className={`w-full p-2 rounded glass-card transition-all ${
                         selectedScript?.id === script.id
                           ? "border-2 border-neon-cyan"
                           : "hover:border border-white/10"
                       }`}
                     >
-                      <div className="font-semibold text-sm">{script.name}</div>
-                      <div className="text-xs text-gray-400">{script.language}</div>
-                    </button>
+                      <button
+                        onClick={() => handleSelectScript(script.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="font-semibold text-sm">{script.name}</div>
+                        <div className="text-xs text-gray-400">{script.language}</div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteScript(script.id);
+                        }}
+                        className="mt-1 text-xs text-neon-red hover:text-neon-red/80"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -233,15 +446,79 @@ export default function AutomationCircuit() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="primary" onClick={handleCreateScript}>
+                  <Button variant="primary" onClick={handleSaveScript}>
                     <Save className="w-4 h-4 mr-2" />
-                    Save
+                    {selectedScript ? "Update" : "Create"}
                   </Button>
-                  <Button variant="secondary">
-                    <Play className="w-4 h-4 mr-2" />
-                    Run
-                  </Button>
+                  {selectedScript && (
+                    <Button 
+                      variant="secondary" 
+                      onClick={handleRunScript}
+                      disabled={isExecuting}
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      {isExecuting ? "Running..." : "Run"}
+                    </Button>
+                  )}
+                  {selectedScript && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedScript(null);
+                        setScriptName("");
+                        setScriptContent("");
+                        setScriptLanguage("javascript");
+                        setExecutionOutput(null);
+                      }}
+                    >
+                      New Script
+                    </Button>
+                  )}
                 </div>
+                
+                {executionOutput && (
+                  <div className="mt-4 border-t border-white/10 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm text-gray-400">Execution Output</label>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        executionOutput.success
+                          ? "bg-neon-green/20 text-neon-green"
+                          : "bg-neon-red/20 text-neon-red"
+                      }`}>
+                        {executionOutput.success ? "Success" : "Failed"} ({executionOutput.executionTimeMs}ms)
+                      </span>
+                    </div>
+                    {executionOutput.stdout && (
+                      <div className="mb-2">
+                        <div className="text-xs text-gray-400 mb-1">STDOUT:</div>
+                        <pre className="glass-card p-3 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto">
+                          {executionOutput.stdout}
+                        </pre>
+                      </div>
+                    )}
+                    {executionOutput.stderr && (
+                      <div className="mb-2">
+                        <div className="text-xs text-neon-red mb-1">STDERR:</div>
+                        <pre className="glass-card p-3 text-xs font-mono text-neon-red overflow-x-auto max-h-32 overflow-y-auto">
+                          {executionOutput.stderr}
+                        </pre>
+                      </div>
+                    )}
+                    {executionOutput.data && (
+                      <div className="mb-2">
+                        <div className="text-xs text-gray-400 mb-1">Result:</div>
+                        <pre className="glass-card p-3 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto">
+                          {JSON.stringify(executionOutput.data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                    {executionOutput.error && (
+                      <div className="text-xs text-neon-red">
+                        Error: {executionOutput.error}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -251,7 +528,7 @@ export default function AutomationCircuit() {
       {view === "workflows" && (
         <Card title="Workflows">
           <div className="space-y-4">
-            <Button variant="primary">
+            <Button variant="primary" onClick={() => setShowWorkflowModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Create Workflow
             </Button>
@@ -283,7 +560,10 @@ export default function AutomationCircuit() {
                       >
                         {workflow.enabled ? "Enabled" : "Disabled"}
                       </span>
-                      <Button variant="secondary">
+                      <Button variant="secondary" onClick={() => handleEditWorkflow(workflow.id)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="secondary" onClick={() => handleExecuteWorkflow(workflow.id)}>
                         <Play className="w-4 h-4" />
                       </Button>
                     </div>
@@ -293,6 +573,29 @@ export default function AutomationCircuit() {
             )}
           </div>
         </Card>
+      )}
+
+      {showWorkflowEditor && selectedWorkflow && (
+        <Modal
+          isOpen={showWorkflowEditor}
+          onClose={() => {
+            setShowWorkflowEditor(false);
+            setSelectedWorkflow(null);
+          }}
+          title="Edit Workflow"
+        >
+          <WorkflowEditor
+            workflowId={selectedWorkflow.id}
+            workflowName={selectedWorkflow.name}
+            steps={selectedWorkflow.steps}
+            onSave={handleSaveWorkflow}
+            onClose={() => {
+              setShowWorkflowEditor(false);
+              setSelectedWorkflow(null);
+            }}
+            scripts={scripts.map((s) => ({ id: s.id, name: s.name }))}
+          />
+        </Modal>
       )}
 
       {view === "executions" && (
@@ -343,6 +646,91 @@ export default function AutomationCircuit() {
           </div>
         </Card>
       )}
+
+      {/* Create Workflow Modal */}
+      <Modal
+        isOpen={showWorkflowModal}
+        onClose={() => {
+          setShowWorkflowModal(false);
+          setWorkflowName("");
+          setWorkflowDescription("");
+          setWorkflowTriggerType("manual");
+          setWorkflowTriggerConfig("{}");
+        }}
+        title="Create Workflow"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Workflow Name
+            </label>
+            <input
+              type="text"
+              value={workflowName}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              className="glass-input w-full"
+              placeholder="e.g., Daily Data Sync, Market Alert..."
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Description (Optional)
+            </label>
+            <textarea
+              value={workflowDescription}
+              onChange={(e) => setWorkflowDescription(e.target.value)}
+              className="glass-input w-full"
+              rows={3}
+              placeholder="Describe what this workflow does..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Trigger Type
+            </label>
+            <select
+              value={workflowTriggerType}
+              onChange={(e) => setWorkflowTriggerType(e.target.value)}
+              className="glass-input w-full"
+            >
+              <option value="manual">Manual</option>
+              <option value="schedule">Schedule</option>
+              <option value="event">Event</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Trigger Config (JSON)
+            </label>
+            <textarea
+              value={workflowTriggerConfig}
+              onChange={(e) => setWorkflowTriggerConfig(e.target.value)}
+              className="glass-input w-full font-mono text-sm"
+              rows={4}
+              placeholder='{"cron": "0 0 * * *"} or {"event": "market_open"}'
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowWorkflowModal(false);
+                setWorkflowName("");
+                setWorkflowDescription("");
+                setWorkflowTriggerType("manual");
+                setWorkflowTriggerConfig("{}");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleCreateWorkflow}>
+              <Save className="w-4 h-4 mr-2" />
+              Create
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

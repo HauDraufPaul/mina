@@ -128,9 +128,9 @@ pub async fn start_news_stream(
     let aggregator = NewsAggregator::new_with_api_keys(store, Some(&*api_key_manager))
         .map_err(|e| format!("Failed to create news aggregator: {}", e))?;
 
-    // Start real-time stream
+    // Start real-time stream with API key manager
     aggregator
-        .start_realtime_stream(app)
+        .start_realtime_stream(app, Some(api_key_manager.inner().clone()))
         .await
         .map_err(|e| format!("Failed to start news stream: {}", e))?;
 

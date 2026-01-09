@@ -3,6 +3,7 @@ use crate::storage::Database;
 use crate::providers::market_data::MarketDataManager;
 use crate::services::api_key_manager::APIKeyManager;
 use crate::services::rate_limiter::RateLimiter;
+use crate::services::automation_event_bus::AutomationEventBus;
 use crate::ws::WsServer;
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
@@ -18,6 +19,7 @@ impl PriceAlertChecker {
         api_key_manager: Arc<APIKeyManager>,
         rate_limiter: Arc<Mutex<RateLimiter>>,
         app: AppHandle,
+        event_bus: Option<Arc<AutomationEventBus>>,
     ) {
         tauri::async_runtime::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Check every 30 seconds
@@ -25,7 +27,7 @@ impl PriceAlertChecker {
             loop {
                 interval.tick().await;
 
-                if let Err(e) = Self::check_alerts(&db, &ws_server, &api_key_manager, &rate_limiter, &app).await {
+                if let Err(e) = Self::check_alerts(&db, &ws_server, &api_key_manager, &rate_limiter, &app, event_bus.as_ref()).await {
                     eprintln!("Error checking price alerts: {}", e);
                 }
             }
@@ -38,6 +40,7 @@ impl PriceAlertChecker {
         api_key_manager: &Arc<APIKeyManager>,
         rate_limiter: &Arc<Mutex<RateLimiter>>,
         app: &AppHandle,
+        event_bus: Option<&Arc<AutomationEventBus>>,
     ) -> Result<()> {
         // Clone the connection before any await to avoid holding MutexGuard across await
         let conn = {
@@ -145,6 +148,11 @@ impl PriceAlertChecker {
                             "data": alert_message,
                             "timestamp": chrono::Utc::now().timestamp_millis(),
                         }));
+                        
+                        // Forward to AutomationEventBus
+                        if let Some(bus) = event_bus {
+                            let _ = crate::services::EventBridge::emit_price_alert(bus, &alert_message).await;
+                        }
 
                         eprintln!("Price alert triggered: {} {} ${:.2} (current: ${:.2})", 
                             alert.ticker, alert.condition, alert.target_price, current_price);

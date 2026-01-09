@@ -102,3 +102,27 @@ pub fn get_prometheus_metrics(
         .map_err(|e| format!("Failed to get metrics: {}", e))
 }
 
+#[tauri::command]
+pub fn init_default_health_checks(
+    db: State<'_, Mutex<Database>>,
+) -> Result<usize, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = DevOpsStore::new(db_guard.conn.clone());
+    
+    // Get current count
+    let before = store.list_health_checks()
+        .map_err(|e| format!("Failed to list health checks: {}", e))?
+        .len();
+    
+    // Initialize defaults (will only add if none exist)
+    store.init_default_health_checks()
+        .map_err(|e| format!("Failed to initialize default health checks: {}", e))?;
+    
+    // Get new count
+    let after = store.list_health_checks()
+        .map_err(|e| format!("Failed to list health checks: {}", e))?
+        .len();
+    
+    Ok(after - before)
+}
+

@@ -185,6 +185,11 @@ pub async fn get_market_prices(
         }
     }
 
+    // Subscribe all requested tickers to the streamer for real-time updates
+    if let Ok(streamer_guard) = streamer.lock() {
+        streamer_guard.subscribe(tickers.clone());
+    }
+
     // Return prices in order requested
     let result: Vec<MarketPrice> = tickers
         .iter()

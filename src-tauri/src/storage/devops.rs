@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthCheck {
@@ -92,6 +92,41 @@ impl DevOpsStore {
             [],
         )?;
 
+        // Migration: Ensure alerts table has required columns
+        let table_exists: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='alerts'",
+            [],
+            |row| Ok(row.get::<_, i64>(0)? > 0),
+        ).unwrap_or(false);
+        
+        if table_exists {
+            // Get existing columns
+            let mut stmt = conn.prepare("SELECT name FROM pragma_table_info('alerts')")?;
+            let columns: Vec<String> = stmt.query_map([], |row| {
+                Ok(row.get::<_, String>(0)?)
+            })?.collect::<Result<Vec<_>, _>>()?;
+            
+            let needs_migration = !columns.contains(&"name".to_string());
+            
+            if needs_migration {
+                // Table exists but has old schema - recreate it
+                conn.execute("DROP INDEX IF EXISTS idx_alerts_created_at", [])?;
+                conn.execute("DROP TABLE IF EXISTS alerts", [])?;
+                conn.execute(
+                    "CREATE TABLE alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        severity TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        resolved_at INTEGER
+                    )",
+                    [],
+                )?;
+            }
+        }
+
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at)",
             [],
@@ -102,7 +137,59 @@ impl DevOpsStore {
             [],
         )?;
 
+        // Initialize default health checks if none exist
+        self.init_default_health_checks_with_conn(&conn)?;
+
         Ok(())
+    }
+
+    // Private helper that works with an already-locked connection
+    fn init_default_health_checks_with_conn(&self, conn: &MutexGuard<Connection>) -> Result<()> {
+        // Check if any health checks exist
+        let count: i64 = match conn.query_row(
+            "SELECT COUNT(*) FROM health_checks",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(c) => c,
+            Err(_) => return Ok(()), // Table doesn't exist yet, skip
+        };
+
+        // Only add defaults if no health checks exist
+        if count == 0 {
+            eprintln!("MINA: Adding default health checks...");
+            let now = chrono::Utc::now().timestamp();
+            
+            let default_checks = vec![
+                ("Localhost", "http://localhost:3000/health"),
+                ("API Server", "http://localhost:8080/health"),
+                ("Database", "http://localhost:5432/health"),
+                ("Redis", "http://localhost:6379/health"),
+                ("Elasticsearch", "http://localhost:9200/_cluster/health"),
+            ];
+
+            for (name, url) in default_checks {
+                if let Err(e) = conn.execute(
+                    "INSERT OR IGNORE INTO health_checks (name, url, status, last_check)
+                     VALUES (?1, ?2, 'unknown', ?3)",
+                    params![name, url, now],
+                ) {
+                    eprintln!("Warning: Failed to insert default health check {}: {}", name, e);
+                } else {
+                    eprintln!("MINA: Added default health check: {}", name);
+                }
+            }
+            eprintln!("MINA: Default health checks initialization complete");
+        }
+
+        Ok(())
+    }
+
+    // Public API that locks the connection
+    pub fn init_default_health_checks(&self) -> Result<()> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        self.init_default_health_checks_with_conn(&conn)
     }
 
     pub fn create_health_check(&self, name: &str, url: &str) -> Result<i64> {
