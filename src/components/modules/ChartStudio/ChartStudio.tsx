@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import MarketChart from "@/components/charts/MarketChart";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Search, Settings, BarChart3, LineChart, Plus, X } from "lucide-react";
+import { Search, Settings, Plus, X } from "lucide-react";
 import type { IndicatorConfig } from "@/components/charts/TechnicalIndicators";
 
 export default function ChartStudio() {
@@ -167,19 +167,17 @@ export default function ChartStudio() {
       <Card 
         title="Price Chart" 
         subtitle={`${ticker} - ${timeframe}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setShowIndicatorPanel(!showIndicatorPanel)}
-              className="!px-3 !py-1.5"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Indicators
-            </Button>
-          </div>
-        }
       >
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="secondary"
+            onClick={() => setShowIndicatorPanel(!showIndicatorPanel)}
+            className="!px-3 !py-1.5"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Indicators
+          </Button>
+        </div>
         {showIndicatorPanel && (
           <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded">
             <div className="flex items-center justify-between mb-3">

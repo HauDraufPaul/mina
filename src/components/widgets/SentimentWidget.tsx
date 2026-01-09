@@ -22,7 +22,7 @@ export default function SentimentWidget({ config }: WidgetProps) {
       try {
         const sentimentData = await invoke<Record<string, number>>("get_aggregated_sentiment", {
           tickers,
-        }).catch(() => ({}));
+        }).catch(() => ({} as Record<string, number>));
 
         const items: SentimentData[] = tickers.map((ticker) => ({
           ticker,

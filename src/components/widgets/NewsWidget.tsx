@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetProps } from "./WidgetRegistry";
-import Card from "../ui/Card";
 import { useErrorHandler } from "@/utils/errorHandler";
 
 interface NewsItem {

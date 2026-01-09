@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
-import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
 import ImpactAnalysis from "./ImpactAnalysis";
 import { realtimeService } from "@/services/realtimeService";
@@ -46,7 +46,7 @@ export default function PortfolioManager() {
   const [selectedPortfolio, setSelectedPortfolio] = useState<number | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [portfolioValue, setPortfolioValue] = useState<PortfolioValue | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddHoldingModal, setShowAddHoldingModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -71,9 +71,6 @@ export default function PortfolioManager() {
   // Subscribe to real-time market data updates for portfolio holdings
   useEffect(() => {
     if (selectedPortfolio && portfolioValue && holdings.length > 0) {
-      // Get all tickers from holdings
-      const tickers = holdings.map(h => h.ticker);
-      
       // Subscribe to market data batch updates
       const unsubscribe = realtimeService.subscribe("market-data-batch", () => {
         // Recalculate portfolio value when prices update

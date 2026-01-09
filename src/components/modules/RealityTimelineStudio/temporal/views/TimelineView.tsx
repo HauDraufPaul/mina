@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
-import { RefreshCw, Layers, ExternalLink, BarChart3 } from "lucide-react";
+import { RefreshCw, Layers, ExternalLink } from "lucide-react";
 import ImpactAnalysis from "../../../PortfolioManager/ImpactAnalysis";
 import { DataSet } from "vis-data";
 import { Timeline } from "vis-timeline/standalone";
@@ -108,7 +108,7 @@ export default function TimelineView() {
       tlInstance.on("select", (props: { items?: string[] }) => {
         const id = props?.items?.[0];
         if (id) {
-          const evt = events.find((x) => x.id === id);
+          const evt = events.find((x) => String(x.id) === id);
           if (evt) openEvent(evt);
         }
       });

@@ -264,27 +264,7 @@ pub fn run() {
                 }
             });
             
-            // Initialize market data streamer
-            eprintln!("MINA: Initializing market data streamer...");
-            let market_streamer = Arc::new(services::market_data_stream::MarketDataStreamer::new(ws_server.clone()));
-            market_streamer.start_batching(app.handle().clone());
-            
-            // Use cloned connection for fetching loop
-            let db_for_streaming = Arc::new(Mutex::new(Database {
-                conn: db_conn_for_streaming,
-            }));
-            market_streamer.start_fetching_loop(app.handle().clone(), db_for_streaming);
-            
-            app.manage(Mutex::new(market_streamer));
-            
-            // Start alert escalation checker
-            eprintln!("MINA: Starting alert escalation checker...");
-            services::alert_escalation_checker::AlertEscalationChecker::start_periodic_checks(
-                db_for_escalation,
-                app.handle().clone(),
-            );
-            
-            // Initialize API key manager for price alerts
+            // Initialize API key manager first (needed for market data streamer)
             let api_key_store = storage::api_keys::APIKeyStore::new(db_conn_for_price_alerts.clone())
                 .unwrap_or_else(|e| {
                     eprintln!("WARNING: Failed to initialize API key store: {}", e);
@@ -296,6 +276,26 @@ pub fn run() {
             ));
             // Manage API key manager in Tauri state for use in commands
             app.manage(api_key_manager.clone());
+            
+            // Initialize market data streamer
+            eprintln!("MINA: Initializing market data streamer...");
+            let market_streamer = Arc::new(services::market_data_stream::MarketDataStreamer::new(ws_server.clone()));
+            market_streamer.start_batching(app.handle().clone());
+            
+            // Use cloned connection for fetching loop
+            let db_for_streaming = Arc::new(Mutex::new(Database {
+                conn: db_conn_for_streaming,
+            }));
+            market_streamer.start_fetching_loop(Some(api_key_manager.clone()), db_for_streaming);
+            
+            app.manage(Mutex::new(market_streamer));
+            
+            // Start alert escalation checker
+            eprintln!("MINA: Starting alert escalation checker...");
+            services::alert_escalation_checker::AlertEscalationChecker::start_periodic_checks(
+                db_for_escalation,
+                app.handle().clone(),
+            );
             let rate_limiter_for_alerts = Arc::new(Mutex::new((*rate_limiter_arc).clone()));
             let db_for_price_alerts = Arc::new(Mutex::new(Database {
                 conn: db_conn_for_price_alerts,
@@ -306,7 +306,7 @@ pub fn run() {
             services::price_alert_checker::PriceAlertChecker::start_checking(
                 db_for_price_alerts,
                 ws_server.clone(),
-                api_key_manager,
+                api_key_manager.clone(),
                 rate_limiter_for_alerts,
                 app.handle().clone(),
             );

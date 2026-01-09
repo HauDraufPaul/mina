@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useMarketData } from "@/hooks/useMarketData";
 import { WidgetProps } from "./WidgetRegistry";
 import { TrendingUp, TrendingDown } from "lucide-react";
@@ -8,7 +7,7 @@ export default function MarketDataWidget({ config }: WidgetProps) {
   const showChange = config.showChange !== false;
   const showVolume = config.showVolume === true;
 
-  const { prices, loading, formatPrice, formatChange } = useMarketData({
+  const { prices, loading, formatPrice } = useMarketData({
     tickers,
     autoSubscribe: true,
     refreshInterval: 60000,

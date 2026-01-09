@@ -24,6 +24,7 @@ pub async fn get_market_price(
     ticker: String,
     db: State<'_, Mutex<Database>>,
     cache: State<'_, Mutex<MarketDataCache>>,
+    api_key_manager: State<'_, Arc<APIKeyManager>>,
 ) -> Result<Option<MarketPrice>, String> {
     // Try in-memory cache first
     if let Ok(cache_guard) = cache.lock() {
@@ -51,8 +52,7 @@ pub async fn get_market_price(
     }
 
     // Fetch from provider
-    let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
-    let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+    let manager = MarketDataManager::new(Some(api_key_manager.inner().as_ref()));
     // Rate limiter is optional - pass None to avoid holding lock across await
     match manager.get_price(&ticker, None).await {
         Ok(price_data) => {
@@ -92,7 +92,7 @@ pub async fn get_market_prices(
     db: State<'_, Mutex<Database>>,
     streamer: State<'_, Mutex<MarketDataStreamer>>,
     cache: State<'_, Mutex<MarketDataCache>>,
-    app: tauri::AppHandle,
+    api_key_manager: State<'_, Arc<APIKeyManager>>,
 ) -> Result<Vec<MarketPrice>, String> {
     let mut result_map: std::collections::HashMap<String, MarketPrice> = std::collections::HashMap::new();
     let mut to_fetch: Vec<String> = Vec::new();
@@ -146,8 +146,7 @@ pub async fn get_market_prices(
 
     // Fetch missing/expired prices
     if !to_fetch.is_empty() {
-        let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
-        let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+        let manager = MarketDataManager::new(Some(api_key_manager.inner().as_ref()));
         // Rate limiter is optional - pass None to avoid holding lock across await
         if let Ok(prices) = manager.get_prices(&to_fetch, None).await {
             for price_data in prices {
@@ -203,7 +202,7 @@ pub async fn get_chart_data(
     interval: String,
     db: State<'_, Mutex<Database>>,
     cache: State<'_, Mutex<MarketDataCache>>,
-    app: tauri::AppHandle,
+    api_key_manager: State<'_, Arc<APIKeyManager>>,
 ) -> Result<Vec<ChartDataPoint>, String> {
     use crate::providers::market_data::OHLCVData;
     
@@ -265,8 +264,7 @@ pub async fn get_chart_data(
     }
 
     // Fetch from provider
-    let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
-    let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+    let manager = MarketDataManager::new(Some(api_key_manager.inner().as_ref()));
     // Rate limiter is optional - pass None to avoid holding lock across await
     match manager.get_history(&ticker, from_ts, to_ts, &interval, None).await {
         Ok(ohlcv_data) => {

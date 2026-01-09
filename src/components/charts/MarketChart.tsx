@@ -272,11 +272,14 @@ export default function MarketChart({
                 
                 const finalSeries = indicatorSeriesRefs.current.get(seriesKey);
                 if (finalSeries && indicatorData.length > 0) {
-                  const formattedData = indicatorData.map((d) => ({
-                    time: d.time as Time,
-                    value: d.value || d.upper || d.middle || d.lower || 0,
-                  }));
-                  series.setData(formattedData);
+                  const formattedData = indicatorData.map((d) => {
+                    const value = 'value' in d ? d.value : ('middle' in d ? d.middle : 0);
+                    return {
+                      time: d.time as Time,
+                      value,
+                    };
+                  });
+                  finalSeries.setData(formattedData);
                 }
               }
             }

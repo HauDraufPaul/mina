@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useMarketData, MarketPrice } from "@/hooks/useMarketData";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -10,8 +9,8 @@ import { useErrorHandler } from "@/utils/errorHandler";
 export default function MarketDataHub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [watchlistTickers, setWatchlistTickers] = useState<string[]>([]);
-  const [allPrices, setAllPrices] = useState<MarketPrice[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_allPrices, _setAllPrices] = useState<MarketPrice[]>([]);
+  const [_loading, _setLoading] = useState(false);
   const { tickers } = useStockNewsStore();
   const errorHandler = useErrorHandler();
 

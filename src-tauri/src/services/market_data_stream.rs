@@ -117,15 +117,14 @@ impl MarketDataStreamer {
     }
 
     /// Start active fetching loop for subscribed tickers
-    pub fn start_fetching_loop(&self, app: tauri::AppHandle, db: Arc<Mutex<Database>>) {
+    pub fn start_fetching_loop(&self, api_key_manager: Option<std::sync::Arc<crate::services::api_key_manager::APIKeyManager>>, db: Arc<Mutex<Database>>) {
         let streamer = Arc::new(self.clone());
         let subscribers = self.subscribers.clone();
         let pending_updates = self.pending_updates.clone();
 
-        let api_key_manager = app.try_state::<std::sync::Arc<crate::services::api_key_manager::APIKeyManager>>();
         tauri::async_runtime::spawn(async move {
             let mut interval = interval(Duration::from_secs(5)); // Fetch every 5 seconds
-            let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+            let manager = MarketDataManager::new(api_key_manager.as_ref().map(|m| m.as_ref()));
             let last_fetch_time = Arc::new(Mutex::new(std::collections::HashMap::<String, i64>::new()));
 
             loop {

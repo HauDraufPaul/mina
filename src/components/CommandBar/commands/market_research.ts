@@ -41,7 +41,7 @@ export const marketResearchCommands: Command[] = [
     name: "correlate",
     description: "Correlate news sentiment with ticker",
     aliases: ["corr"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[], _context) => {
       const ticker = args[0]?.toUpperCase();
       if (!ticker) {
         throw new Error("Usage: correlate <TICKER> NEWS SENTIMENT");
@@ -59,7 +59,7 @@ export const marketResearchCommands: Command[] = [
     name: "alert-rule-create",
     description: "Create an alert rule",
     aliases: ["arc", "alert-create"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[], _context) => {
       if (args.length < 2) {
         throw new Error("Usage: alert-rule-create <name> <conditions_json>");
       }
@@ -84,7 +84,7 @@ export const marketResearchCommands: Command[] = [
     name: "portfolio-value",
     description: "Show portfolio value",
     aliases: ["pv", "portfolio"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[], _context) => {
       const portfolioId = args[0] ? parseInt(args[0]) : null;
       if (!portfolioId) {
         // Get first portfolio
@@ -123,7 +123,7 @@ export const marketResearchCommands: Command[] = [
     name: "economic-calendar",
     description: "Show economic calendar",
     aliases: ["ec", "calendar"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[], _context) => {
       const country = args[0] || null;
       const now = Math.floor(Date.now() / 1000);
       const fromTs = now - 7 * 24 * 3600;
@@ -144,7 +144,7 @@ export const marketResearchCommands: Command[] = [
     name: "search",
     description: "Search temporal events and news",
     aliases: ["s"],
-    execute: async (args: string[], context) => {
+    execute: async (args: string[], _context) => {
       const query = args.join(" ");
       if (!query) {
         throw new Error("Usage: search <query>");

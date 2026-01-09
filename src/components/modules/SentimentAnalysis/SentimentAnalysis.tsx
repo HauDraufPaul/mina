@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
 
 interface SentimentDataPoint {
@@ -14,7 +14,7 @@ export default function SentimentAnalysis() {
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
   const [days, setDays] = useState(7);
   const [sentimentData, setSentimentData] = useState<SentimentDataPoint[]>([]);
-  const [aggregatedSentiment, setAggregatedSentiment] = useState<Record<string, number>>({});
+  const [_aggregatedSentiment, _setAggregatedSentiment] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [tickers, setTickers] = useState<string[]>([]);
   const errorHandler = useErrorHandler();
@@ -56,17 +56,6 @@ export default function SentimentAnalysis() {
       errorHandler.showError("Failed to load sentiment data", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadAggregatedSentiment = async (tickerList: string[]) => {
-    try {
-      const result = await invoke<Record<string, number>>("get_aggregated_sentiment", {
-        tickers: tickerList,
-      });
-      setAggregatedSentiment(result);
-    } catch (err) {
-      errorHandler.showError("Failed to load aggregated sentiment", err);
     }
   };
 

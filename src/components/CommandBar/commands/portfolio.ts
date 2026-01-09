@@ -49,7 +49,7 @@ export const portfolioCommands: Command[] = [
       const quantity = parseFloat(args[2]);
       const price = args[3] ? parseFloat(args[3]) : null;
 
-      const holdingId = await invoke<number>("add_holding", {
+      await invoke<number>("add_holding", {
         portfolioId,
         ticker,
         quantity,

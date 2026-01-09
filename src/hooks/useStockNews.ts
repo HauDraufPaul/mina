@@ -152,14 +152,14 @@ export function useStockNews(options: UseStockNewsOptions = {}) {
   useEffect(() => {
     if (!autoSubscribe) return;
 
-    const unsubscribeNews = realtimeService.subscribe("stock-news", (data: StockNewsItem) => {
-      addNewsItem(data);
+    const unsubscribeNews = realtimeService.subscribe("stock-news", (data: unknown) => {
+      addNewsItem(data as StockNewsItem);
     });
 
     const unsubscribeBatch = realtimeService.subscribe(
       "stock-news-batch",
-      (data: StockNewsItem[]) => {
-        addNewsItems(data);
+      (data: unknown) => {
+        addNewsItems(data as StockNewsItem[]);
       }
     );
 

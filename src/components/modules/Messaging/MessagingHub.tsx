@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
-import { Send, Plus, Paperclip, TrendingUp } from "lucide-react";
+import { Send, Plus } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
 import { realtimeService } from "@/services/realtimeService";
 
@@ -22,20 +22,13 @@ interface Message {
   created_at: number;
 }
 
-interface MessageAttachment {
-  id: number;
-  message_id: number;
-  attachment_type: string;
-  data_json: Record<string, unknown>;
-  created_at: number;
-}
 
 export default function MessagingHub() {
   const [conversations, setConversations] = useState<MessagingConversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageContent, setMessageContent] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newConversationName, setNewConversationName] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,14 +46,15 @@ export default function MessagingHub() {
 
   // Subscribe to real-time message updates
   useEffect(() => {
-    const unsubscribe = realtimeService.subscribe("message", (data: Message) => {
-      if (data.conversation_id === selectedConversation) {
+    const unsubscribe = realtimeService.subscribe("message", (data: unknown) => {
+      const message = data as Message;
+      if (message.conversation_id === selectedConversation) {
         setMessages((prev) => {
           // Avoid duplicates
-          if (prev.some((m) => m.id === data.id)) {
+          if (prev.some((m) => m.id === message.id)) {
             return prev;
           }
-          return [...prev, data].sort((a, b) => a.created_at - b.created_at);
+          return [...prev, message].sort((a, b) => a.created_at - b.created_at);
         });
       }
     });
@@ -132,29 +126,6 @@ export default function MessagingHub() {
       // Don't reload - WebSocket will update in real-time
     } catch (err) {
       errorHandler.showError("Failed to send message", err);
-    }
-  };
-
-  const attachTicker = async (ticker: string) => {
-    if (!selectedConversation || !messageContent.trim()) return;
-
-    try {
-      const messageId = await invoke<number>("send_message", {
-        conversationId: selectedConversation,
-        sender: "user",
-        content: messageContent.trim(),
-      });
-
-      await invoke<number>("attach_market_context", {
-        messageId,
-        attachmentType: "ticker",
-        dataJson: { ticker },
-      });
-
-      setMessageContent("");
-      // Don't reload - WebSocket will update in real-time
-    } catch (err) {
-      errorHandler.showError("Failed to attach ticker", err);
     }
   };
 

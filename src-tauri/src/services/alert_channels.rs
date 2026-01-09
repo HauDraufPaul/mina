@@ -50,8 +50,8 @@ impl AlertChannelSender {
                     .context("Failed to build email message")?;
                 
                 // Create SMTP transport
-                let smtp_port = *smtp_port as u16;
-                let smtp_addr = format!("{}:{}", smtp_host, smtp_port);
+                let smtp_port_u16 = smtp_port.min(u16::MAX as u64) as u16;
+                let smtp_addr = format!("{}:{}", smtp_host, smtp_port_u16);
                 
                 // Determine if we need TLS (check config or default to STARTTLS)
                 let use_tls = config
@@ -62,13 +62,13 @@ impl AlertChannelSender {
                 let mailer = if use_tls {
                     AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)
                         .context(format!("Failed to create SMTP relay for {}", smtp_host))?
-                        .port(smtp_port)
+                        .port(smtp_port_u16)
                         .credentials(Credentials::new(smtp_user.to_string(), smtp_pass.to_string()))
                         .build()
                 } else {
                     // For non-TLS (not recommended but supported)
                     AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(smtp_host)
-                        .port(smtp_port)
+                        .port(smtp_port_u16)
                         .credentials(Credentials::new(smtp_user.to_string(), smtp_pass.to_string()))
                         .build()
                 };

@@ -1,10 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @import url('./tokens.css');
 @import url('./glass.css');
 @import url('./terminal-effects.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   * {

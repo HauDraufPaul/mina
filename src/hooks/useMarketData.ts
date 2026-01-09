@@ -93,10 +93,11 @@ export function useMarketData(options: UseMarketDataOptions = {}) {
     fetchPrices(tickers);
 
     // Subscribe to real-time updates
-    const unsubscribeBatch = realtimeService.subscribe("market-data-batch", (data: MarketPrice[]) => {
+    const unsubscribeBatch = realtimeService.subscribe("market-data-batch", (data: unknown) => {
+      const prices = data as MarketPrice[];
       setPrices((prev) => {
         const updated = new Map(prev);
-        for (const price of data) {
+        for (const price of prices) {
           // Only update if we're subscribed to this ticker
           if (tickers.includes(price.ticker)) {
             updated.set(price.ticker, price);
@@ -106,11 +107,12 @@ export function useMarketData(options: UseMarketDataOptions = {}) {
       });
     });
 
-    const unsubscribeSingle = realtimeService.subscribe("market-data", (data: MarketPrice) => {
-      if (tickers.includes(data.ticker)) {
+    const unsubscribeSingle = realtimeService.subscribe("market-data", (data: unknown) => {
+      const price = data as MarketPrice;
+      if (tickers.includes(price.ticker)) {
         setPrices((prev) => {
           const updated = new Map(prev);
-          updated.set(data.ticker, data);
+          updated.set(price.ticker, price);
           return updated;
         });
       }

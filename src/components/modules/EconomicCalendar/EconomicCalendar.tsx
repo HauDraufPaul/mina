@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Calendar, TrendingUp, TrendingDown, Filter, Plus } from "lucide-react";
+import { Calendar, Filter, Plus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useErrorHandler } from "@/utils/errorHandler";
 
@@ -22,7 +22,7 @@ interface EconomicEvent {
 
 export default function EconomicCalendar() {
   const [events, setEvents] = useState<EconomicEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EconomicEvent | null>(null);

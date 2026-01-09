@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetProps } from "./WidgetRegistry";
-import { Calendar, AlertTriangle } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
 
 interface EconomicEvent {
