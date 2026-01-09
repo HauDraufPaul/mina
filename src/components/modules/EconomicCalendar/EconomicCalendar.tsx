@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Calendar, TrendingUp, TrendingDown, Filter } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Filter, Plus } from "lucide-react";
+import Modal from "@/components/ui/Modal";
 import { useErrorHandler } from "@/utils/errorHandler";
 
 interface EconomicEvent {
@@ -25,6 +26,13 @@ export default function EconomicCalendar() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EconomicEvent | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newEventName, setNewEventName] = useState("");
+  const [newEventCountry, setNewEventCountry] = useState("US");
+  const [newEventType, setNewEventType] = useState("GDP");
+  const [newEventScheduled, setNewEventScheduled] = useState("");
+  const [newEventForecast, setNewEventForecast] = useState("");
+  const [newEventPrevious, setNewEventPrevious] = useState("");
   const errorHandler = useErrorHandler();
 
   useEffect(() => {
@@ -90,6 +98,10 @@ export default function EconomicCalendar() {
           <h2 className="text-2xl font-bold text-gray-200">Economic Calendar</h2>
           <p className="text-sm text-gray-400">Track economic events and their market impact</p>
         </div>
+        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Event
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -217,6 +229,126 @@ export default function EconomicCalendar() {
           )}
         </Card>
       </div>
+
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Add Economic Event"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Event Name</label>
+            <input
+              type="text"
+              value={newEventName}
+              onChange={(e) => setNewEventName(e.target.value)}
+              placeholder="GDP Growth Rate"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Country</label>
+            <input
+              type="text"
+              value={newEventCountry}
+              onChange={(e) => setNewEventCountry(e.target.value)}
+              placeholder="US"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Event Type</label>
+            <select
+              value={newEventType}
+              onChange={(e) => setNewEventType(e.target.value)}
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white focus:outline-none focus:border-neon-cyan"
+            >
+              <option value="GDP">GDP</option>
+              <option value="Interest Rate">Interest Rate</option>
+              <option value="FOMC">FOMC</option>
+              <option value="CPI">CPI</option>
+              <option value="Inflation">Inflation</option>
+              <option value="Unemployment">Unemployment</option>
+              <option value="Retail Sales">Retail Sales</option>
+              <option value="Manufacturing">Manufacturing</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Scheduled Date & Time</label>
+            <input
+              type="datetime-local"
+              value={newEventScheduled}
+              onChange={(e) => setNewEventScheduled(e.target.value)}
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Forecast Value (Optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newEventForecast}
+              onChange={(e) => setNewEventForecast(e.target.value)}
+              placeholder="2.5"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Previous Value (Optional)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newEventPrevious}
+              onChange={(e) => setNewEventPrevious(e.target.value)}
+              placeholder="2.3"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                if (!newEventName.trim() || !newEventScheduled) {
+                  errorHandler.showError("Please fill in required fields", new Error("Name and scheduled date are required"));
+                  return;
+                }
+
+                try {
+                  const scheduledAt = Math.floor(new Date(newEventScheduled).getTime() / 1000);
+                  const forecast = newEventForecast ? parseFloat(newEventForecast) : null;
+                  const previous = newEventPrevious ? parseFloat(newEventPrevious) : null;
+
+                  await invoke("create_economic_event", {
+                    name: newEventName.trim(),
+                    country: newEventCountry.trim(),
+                    eventType: newEventType,
+                    scheduledAt,
+                    forecastValue: forecast,
+                    previousValue: previous,
+                  });
+
+                  setNewEventName("");
+                  setNewEventCountry("US");
+                  setNewEventType("GDP");
+                  setNewEventScheduled("");
+                  setNewEventForecast("");
+                  setNewEventPrevious("");
+                  setShowCreateModal(false);
+                  await loadEvents();
+                } catch (err) {
+                  errorHandler.showError("Failed to create event", err);
+                }
+              }}
+            >
+              Create
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

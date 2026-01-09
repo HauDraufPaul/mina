@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Search, Filter, Database } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface SearchResult {
   document: {
@@ -15,6 +16,7 @@ interface SearchResult {
 }
 
 export default function VectorSearch() {
+  const errorHandler = useErrorHandler();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [collections, setCollections] = useState<string[]>([]);
@@ -43,20 +45,18 @@ export default function VectorSearch() {
 
   const handleSearch = async () => {
     if (!query.trim()) {
-      // TODO: Replace with proper error UI component
-      alert("Please enter a search query");
+      errorHandler.showError("Please enter a search query");
       return;
     }
 
     if (filters.collection === "all") {
-      // TODO: Replace with proper error UI component
-      alert("Please select a collection");
+      errorHandler.showError("Please select a collection");
       return;
     }
 
     // Validate query length
     if (query.length > 1000) {
-      alert("Search query is too long (max 1000 characters)");
+      errorHandler.showError("Search query is too long (max 1000 characters)");
       return;
     }
 
@@ -77,9 +77,7 @@ export default function VectorSearch() {
 
       setResults(searchResults);
     } catch (error) {
-      console.error("Search failed:", error);
-      // TODO: Replace with proper error UI component
-      alert(`Search failed: ${error}`);
+      errorHandler.showError("Search failed", error);
       setResults([]); // Clear results on error
     } finally {
       setLoading(false);

@@ -16,6 +16,8 @@ pub enum WsMessage {
     StockNewsBatch(Vec<crate::storage::StockNewsItem>),
     MarketData(crate::storage::MarketPrice),
     MarketDataBatch(Vec<crate::storage::MarketPrice>),
+    Message(crate::storage::messaging::Message),
+    MessageTyping { conversation_id: i64, sender: String },
     Ping,
     Pong,
 }
@@ -42,7 +44,11 @@ impl WsServer {
 
     pub fn start_broadcast(&self, app: tauri::AppHandle) {
         let (tx, _) = broadcast::channel::<WsMessage>(1000);
-        *self.system_metrics_tx.lock().unwrap() = Some(tx.clone());
+        if let Ok(mut tx_guard) = self.system_metrics_tx.lock() {
+            *tx_guard = Some(tx.clone());
+        } else {
+            eprintln!("Failed to lock system_metrics_tx - mutex poisoned");
+        }
 
         let connections = self.connections.clone();
         let app_handle = app.clone();
@@ -119,11 +125,12 @@ impl WsServer {
                         }));
 
                         // Send to all connections subscribed to system-metrics or *
-                        let conns = connections.lock().unwrap();
-                        for conn in conns.values() {
-                            if conn.topics.contains(&"system-metrics".to_string()) || 
-                               conn.topics.contains(&"*".to_string()) {
-                                let _ = conn.sender.send(msg.clone());
+                        if let Ok(conns) = connections.lock() {
+                            for conn in conns.values() {
+                                if conn.topics.contains(&"system-metrics".to_string()) || 
+                                   conn.topics.contains(&"*".to_string()) {
+                                    let _ = conn.sender.send(msg.clone());
+                                }
                             }
                         }
                     } else {
@@ -131,9 +138,10 @@ impl WsServer {
                         let msg = WsMessage::Ping;
                         let _ = tx.send(msg.clone());
                         
-                        let conns = connections.lock().unwrap();
-                        for conn in conns.values() {
-                            let _ = conn.sender.send(msg.clone());
+                        if let Ok(conns) = connections.lock() {
+                            for conn in conns.values() {
+                                let _ = conn.sender.send(msg.clone());
+                            }
                         }
                     }
                 } else {
@@ -141,9 +149,10 @@ impl WsServer {
                     let msg = WsMessage::Ping;
                     let _ = tx.send(msg.clone());
                     
-                    let conns = connections.lock().unwrap();
-                    for conn in conns.values() {
-                        let _ = conn.sender.send(msg.clone());
+                    if let Ok(conns) = connections.lock() {
+                        for conn in conns.values() {
+                            let _ = conn.sender.send(msg.clone());
+                        }
                     }
                 }
             }
@@ -151,7 +160,8 @@ impl WsServer {
     }
 
     pub fn subscribe(&self, connection_id: String, topics: Vec<String>) -> Result<(), String> {
-        let mut conns = self.connections.lock().unwrap();
+        let mut conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
         if let Some(conn) = conns.get_mut(&connection_id) {
             conn.topics = topics;
             Ok(())
@@ -161,7 +171,8 @@ impl WsServer {
     }
 
     pub fn publish(&self, topic: &str, message: WsMessage) -> Result<(), String> {
-        let conns = self.connections.lock().unwrap();
+        let conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
         for conn in conns.values() {
             if conn.topics.contains(&topic.to_string()) || conn.topics.contains(&"*".to_string()) {
                 let _ = conn.sender.send(message.clone());
@@ -171,11 +182,16 @@ impl WsServer {
     }
 
     pub fn get_connection_count(&self) -> usize {
-        self.connections.lock().unwrap().len()
+        self.connections.lock()
+            .map(|conns| conns.len())
+            .unwrap_or(0)
     }
 
     pub fn get_topics(&self) -> Vec<String> {
-        let conns = self.connections.lock().unwrap();
+        let conns = match self.connections.lock() {
+            Ok(conns) => conns,
+            Err(_) => return Vec::new(), // Return empty vec if lock fails
+        };
         let mut topics = std::collections::HashSet::new();
         for conn in conns.values() {
             for topic in &conn.topics {

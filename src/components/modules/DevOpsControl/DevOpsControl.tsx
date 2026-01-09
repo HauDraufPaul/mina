@@ -4,6 +4,7 @@ import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import Tabs from "../../ui/Tabs";
 import Modal from "../../ui/Modal";
+import { useErrorHandler } from "@/utils/errorHandler";
 import { 
   Activity, 
   AlertCircle, 
@@ -44,6 +45,7 @@ interface Alert {
 }
 
 export default function DevOpsControl() {
+  const errorHandler = useErrorHandler();
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [view, setView] = useState<"health" | "alerts" | "metrics">("health");
@@ -104,19 +106,19 @@ export default function DevOpsControl() {
 
   const handleCreateHealthCheck = async () => {
     if (!newHealthCheckName.trim() || !newHealthCheckUrl.trim()) {
-      alert("Please enter both name and URL");
+      errorHandler.showError("Please enter both name and URL");
       return;
     }
 
     try {
       new URL(newHealthCheckUrl.trim());
     } catch {
-      alert("Please enter a valid URL");
+      errorHandler.showError("Please enter a valid URL");
       return;
     }
 
     if (!/^[a-zA-Z0-9_\s-]+$/.test(newHealthCheckName.trim())) {
-      alert("Name can only contain letters, numbers, underscores, hyphens, and spaces");
+      errorHandler.showError("Name can only contain letters, numbers, underscores, hyphens, and spaces");
       return;
     }
 
@@ -129,15 +131,15 @@ export default function DevOpsControl() {
       setNewHealthCheckUrl("");
       setShowHealthCheckModal(false);
       await loadData();
+      errorHandler.showSuccess("Health check created successfully");
     } catch (error) {
-      console.error("Failed to create health check:", error);
-      alert(`Failed to create health check: ${error}`);
+      errorHandler.showError("Failed to create health check", error);
     }
   };
 
   const handleCreateAlert = async () => {
     if (!newAlertName.trim() || !newAlertMessage.trim() || !newAlertSource.trim()) {
-      alert("Please fill in all required fields");
+      errorHandler.showError("Please fill in all required fields");
       return;
     }
 
@@ -154,9 +156,9 @@ export default function DevOpsControl() {
       setNewAlertSeverity("warning");
       setShowAlertModal(false);
       await loadData();
+      errorHandler.showSuccess("Alert created successfully");
     } catch (error) {
-      console.error("Failed to create alert:", error);
-      alert(`Failed to create alert: ${error}`);
+      errorHandler.showError("Failed to create alert", error);
     }
   };
 
@@ -164,8 +166,9 @@ export default function DevOpsControl() {
     try {
       await invoke("resolve_alert", { id });
       await loadData();
+      errorHandler.showSuccess("Alert resolved successfully");
     } catch (error) {
-      alert(`Failed to resolve alert: ${error}`);
+      errorHandler.showError("Failed to resolve alert", error);
     }
   };
 

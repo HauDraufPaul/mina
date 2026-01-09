@@ -37,7 +37,9 @@ export type RealtimeEventType =
   | "stock-news"
   | "stock-news-batch"
   | "market-data"
-  | "market-data-batch";
+  | "market-data-batch"
+  | "message"
+  | "message-typing";
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

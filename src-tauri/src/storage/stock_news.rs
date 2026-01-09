@@ -46,7 +46,8 @@ impl StockNewsStore {
     }
 
     pub fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         // Stock tickers table
         conn.execute(
@@ -112,7 +113,8 @@ impl StockNewsStore {
 
     // Stock Ticker CRUD operations
     pub fn create_ticker(&self, symbol: &str, name: &str, exchange: &str, index_name: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -125,7 +127,8 @@ impl StockNewsStore {
     }
 
     pub fn get_ticker(&self, symbol: &str) -> Result<Option<StockTicker>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         conn.query_row(
             "SELECT id, symbol, name, exchange, index_name, created_at FROM stock_tickers WHERE symbol = ?1",
@@ -146,7 +149,8 @@ impl StockNewsStore {
     }
 
     pub fn list_tickers(&self, index_name: Option<&str>) -> Result<Vec<StockTicker>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let query = if let Some(index) = index_name {
             format!(
@@ -177,7 +181,8 @@ impl StockNewsStore {
     }
 
     pub fn delete_ticker(&self, symbol: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute("DELETE FROM stock_tickers WHERE symbol = ?1", params![symbol])?;
         Ok(())
     }
@@ -192,7 +197,8 @@ impl StockNewsStore {
         source_id: Option<&str>,
         published_at: i64,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -222,7 +228,8 @@ impl StockNewsStore {
         published_at: i64,
         sentiment: f64,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -243,7 +250,8 @@ impl StockNewsStore {
     }
 
     pub fn get_news_item(&self, id: i64) -> Result<Option<StockNewsItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let news = conn
             .query_row(
@@ -280,7 +288,8 @@ impl StockNewsStore {
     }
 
     pub fn get_news(&self, tickers: Option<Vec<String>>, limit: i32, since: Option<i64>) -> Result<Vec<StockNewsItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let query = if let Some(ref ticker_list) = tickers {
             let ticker_placeholders = ticker_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -378,7 +387,8 @@ impl StockNewsStore {
     }
 
     pub fn search_news(&self, query: &str, tickers: Option<Vec<String>>, limit: i32) -> Result<Vec<StockNewsItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let search_term = format!("%{}%", query);
 
         let sql = if let Some(ref ticker_list) = tickers {
@@ -456,7 +466,8 @@ impl StockNewsStore {
     }
 
     pub fn associate_ticker(&self, news_id: i64, ticker: &str, confidence: f64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "INSERT OR REPLACE INTO stock_news_tickers (news_id, ticker, confidence)
              VALUES (?1, ?2, ?3)",
@@ -466,7 +477,8 @@ impl StockNewsStore {
     }
 
     pub fn get_news_tickers(&self, news_id: i64) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT ticker FROM stock_news_tickers WHERE news_id = ?1 ORDER BY confidence DESC",
         )?;
@@ -481,7 +493,8 @@ impl StockNewsStore {
     }
 
     pub fn cleanup_old_news(&self, days: i64) -> Result<usize> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let cutoff = chrono::Utc::now().timestamp() - (days * 24 * 3600);
 
         let deleted = conn.execute(

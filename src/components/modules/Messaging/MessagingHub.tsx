@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { Send, Plus, Paperclip, TrendingUp } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
+import { realtimeService } from "@/services/realtimeService";
 
 interface MessagingConversation {
   id: number;
@@ -48,6 +49,22 @@ export default function MessagingHub() {
     if (selectedConversation) {
       loadMessages(selectedConversation);
     }
+  }, [selectedConversation]);
+
+  // Subscribe to real-time message updates
+  useEffect(() => {
+    const unsubscribe = realtimeService.subscribe("message", (data: Message) => {
+      if (data.conversation_id === selectedConversation) {
+        setMessages((prev) => {
+          // Avoid duplicates
+          if (prev.some((m) => m.id === data.id)) {
+            return prev;
+          }
+          return [...prev, data].sort((a, b) => a.created_at - b.created_at);
+        });
+      }
+    });
+    return () => unsubscribe();
   }, [selectedConversation]);
 
   useEffect(() => {
@@ -112,7 +129,7 @@ export default function MessagingHub() {
       });
 
       setMessageContent("");
-      await loadMessages(selectedConversation);
+      // Don't reload - WebSocket will update in real-time
     } catch (err) {
       errorHandler.showError("Failed to send message", err);
     }
@@ -135,7 +152,7 @@ export default function MessagingHub() {
       });
 
       setMessageContent("");
-      await loadMessages(selectedConversation);
+      // Don't reload - WebSocket will update in real-time
     } catch (err) {
       errorHandler.showError("Failed to attach ticker", err);
     }

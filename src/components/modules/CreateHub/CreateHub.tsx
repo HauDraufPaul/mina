@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Plus, Save, Trash2, Play, FileCode } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface Project {
   id: number;
@@ -14,6 +15,7 @@ interface Project {
 }
 
 export default function CreateHub() {
+  const errorHandler = useErrorHandler();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState("");
@@ -44,7 +46,7 @@ export default function CreateHub() {
 
   const handleCreateProject = async () => {
     if (!projectName.trim()) {
-      alert("Please enter a project name");
+      errorHandler.showError("Please enter a project name");
       return;
     }
 
@@ -57,8 +59,9 @@ export default function CreateHub() {
       setProjectName("");
       setProjectContent("");
       await loadProjects();
+      errorHandler.showSuccess("Project created successfully");
     } catch (error) {
-      alert(`Failed to create project: ${error}`);
+      errorHandler.showError("Failed to create project", error);
     }
   };
 
@@ -72,8 +75,9 @@ export default function CreateHub() {
         content: projectContent,
       });
       await loadProjects();
+      errorHandler.showSuccess("Project updated successfully");
     } catch (error) {
-      alert(`Failed to update project: ${error}`);
+      errorHandler.showError("Failed to update project", error);
     }
   };
 
@@ -88,8 +92,9 @@ export default function CreateHub() {
         setProjectContent("");
       }
       await loadProjects();
+      errorHandler.showSuccess("Project deleted successfully");
     } catch (error) {
-      alert(`Failed to delete project: ${error}`);
+      errorHandler.showError("Failed to delete project", error);
     }
   };
 

@@ -83,7 +83,8 @@ impl OSINTStore {
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS rss_feeds (
@@ -229,7 +230,8 @@ impl OSINTStore {
     }
 
     fn init_default_feeds(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         // Check if any feeds exist (ignore errors if table doesn't exist yet)
         let count: i64 = match conn.query_row(
@@ -271,7 +273,8 @@ impl OSINTStore {
     }
 
     pub fn create_feed(&self, url: &str, name: &str, reliability: Option<f64>) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let rel = reliability.unwrap_or(0.5);
 
@@ -292,7 +295,8 @@ impl OSINTStore {
     }
 
     pub fn update_feed(&self, id: i64, name: Option<&str>, url: Option<&str>, reliability: Option<f64>, enabled: Option<bool>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         if let Some(n) = name {
             conn.execute("UPDATE rss_feeds SET name = ?1 WHERE id = ?2", params![n, id])?;
@@ -311,14 +315,16 @@ impl OSINTStore {
     }
 
     pub fn update_feed_last_fetch(&self, id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute("UPDATE rss_feeds SET last_fetch = ?1 WHERE id = ?2", params![now, id])?;
         Ok(())
     }
 
     pub fn delete_feed(&self, id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute("DELETE FROM rss_feeds WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -327,7 +333,8 @@ impl OSINTStore {
         // Initialize default feeds lazily on first access
         let _ = self.init_default_feeds();
         
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, url, name, enabled, reliability, last_fetch, created_at FROM rss_feeds ORDER BY reliability DESC, name"
         )?;
@@ -359,7 +366,8 @@ impl OSINTStore {
         url: &str,
         published_at: i64,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let fetched_at = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -379,7 +387,8 @@ impl OSINTStore {
     }
 
     pub fn get_recent_items(&self, limit: i32) -> Result<Vec<RSSItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         // Get items ordered by feed reliability and recency
         let mut stmt = conn.prepare(
             "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at, 
@@ -415,7 +424,8 @@ impl OSINTStore {
     }
 
     pub fn get_item(&self, id: i64) -> Result<Option<RSSItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, feed_id, title, content, url, published_at, fetched_at, read, favorite, saved, folder_id
              FROM rss_items WHERE id = ?1"
@@ -443,7 +453,8 @@ impl OSINTStore {
     }
 
     pub fn mark_as_read(&self, id: i64, read: bool) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "UPDATE rss_items SET read = ?1 WHERE id = ?2",
             params![if read { 1i64 } else { 0i64 }, id],
@@ -452,7 +463,8 @@ impl OSINTStore {
     }
 
     pub fn toggle_favorite(&self, id: i64) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let current: i64 = conn.query_row(
             "SELECT favorite FROM rss_items WHERE id = ?1",
             params![id],
@@ -467,7 +479,8 @@ impl OSINTStore {
     }
 
     pub fn toggle_saved(&self, id: i64) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let current: i64 = conn.query_row(
             "SELECT saved FROM rss_items WHERE id = ?1",
             params![id],
@@ -482,7 +495,8 @@ impl OSINTStore {
     }
 
     pub fn set_folder(&self, id: i64, folder_id: Option<i64>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "UPDATE rss_items SET folder_id = ?1 WHERE id = ?2",
             params![folder_id, id],
@@ -491,7 +505,8 @@ impl OSINTStore {
     }
 
     pub fn create_folder(&self, name: &str, color: Option<&str>) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT INTO article_folders (name, color, created_at) VALUES (?1, ?2, ?3)",
@@ -501,7 +516,8 @@ impl OSINTStore {
     }
 
     pub fn list_folders(&self) -> Result<Vec<ArticleFolder>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, color, created_at FROM article_folders ORDER BY name"
         )?;
@@ -523,7 +539,8 @@ impl OSINTStore {
     }
 
     pub fn delete_folder(&self, id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "UPDATE rss_items SET folder_id = NULL WHERE folder_id = ?1",
             params![id],
@@ -540,7 +557,8 @@ impl OSINTStore {
         folder_id: Option<i64>,
         limit: i32,
     ) -> Result<Vec<RSSItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut query = "SELECT i.id, i.feed_id, i.title, i.content, i.url, i.published_at, i.fetched_at, 
                                 i.read, i.favorite, i.saved, i.folder_id
                          FROM rss_items i
@@ -602,7 +620,8 @@ impl OSINTStore {
         confidence: f64,
         context: Option<&str>,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT OR IGNORE INTO extracted_entities (article_id, entity_type, name, confidence, context, extracted_at)
@@ -619,7 +638,8 @@ impl OSINTStore {
     }
 
     pub fn get_entities_for_article(&self, article_id: i64) -> Result<Vec<ExtractedEntity>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, article_id, entity_type, name, confidence, context, extracted_at
              FROM extracted_entities
@@ -647,7 +667,8 @@ impl OSINTStore {
     }
 
     pub fn create_entity(&self, entity_type: &str, name: &str, metadata: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -660,7 +681,8 @@ impl OSINTStore {
     }
 
     pub fn list_entities(&self, entity_type: Option<&str>) -> Result<Vec<Entity>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut entities = Vec::new();
         
         if let Some(et) = entity_type {
@@ -706,7 +728,8 @@ impl OSINTStore {
         relationship_type: &str,
         strength: f64,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Save, RefreshCw } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface ConfigEntry {
   key: string;
@@ -10,6 +11,7 @@ interface ConfigEntry {
 }
 
 export default function ConfigurationManager() {
+  const errorHandler = useErrorHandler();
   const [configs, setConfigs] = useState<ConfigEntry[]>([]);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -59,14 +61,15 @@ export default function ConfigurationManager() {
     try {
       await invoke("set_config", { key, value });
       await loadConfigs();
+      errorHandler.showSuccess("Config saved successfully");
     } catch (error) {
-      alert(`Failed to save config: ${error}`);
+      errorHandler.showError("Failed to save config", error);
     }
   };
 
   const handleAdd = async () => {
     if (!newKey.trim()) {
-      alert("Key cannot be empty");
+      errorHandler.showError("Key cannot be empty");
       return;
     }
     try {
@@ -74,8 +77,9 @@ export default function ConfigurationManager() {
       setNewKey("");
       setNewValue("");
       await loadConfigs();
+      errorHandler.showSuccess("Config added successfully");
     } catch (error) {
-      alert(`Failed to add config: ${error}`);
+      errorHandler.showError("Failed to add config", error);
     }
   };
 

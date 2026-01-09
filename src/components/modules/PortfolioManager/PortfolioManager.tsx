@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
-import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
+import ImpactAnalysis from "./ImpactAnalysis";
 
 interface Portfolio {
   id: number;
@@ -51,6 +52,8 @@ export default function PortfolioManager() {
   const [newHoldingTicker, setNewHoldingTicker] = useState("");
   const [newHoldingQuantity, setNewHoldingQuantity] = useState("");
   const [newHoldingPrice, setNewHoldingPrice] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [showImpactAnalysis, setShowImpactAnalysis] = useState(false);
   const errorHandler = useErrorHandler();
 
   useEffect(() => {
@@ -320,6 +323,48 @@ export default function PortfolioManager() {
           )}
         </Card>
       </div>
+
+      {selectedPortfolio && (
+        <Card
+          title="Event Impact Analysis"
+          subtitle="Analyze how temporal events affect your portfolio"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm text-gray-400 mb-2">Event ID</label>
+                <input
+                  type="number"
+                  value={selectedEventId || ""}
+                  onChange={(e) => setSelectedEventId(e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="Enter event ID from timeline"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-gray-500 focus:outline-none focus:border-neon-cyan"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowImpactAnalysis(selectedEventId !== null)}
+                  disabled={!selectedEventId}
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Analyze Impact
+                </Button>
+              </div>
+            </div>
+
+            {showImpactAnalysis && selectedEventId && selectedPortfolio && (
+              <div className="mt-4">
+                <ImpactAnalysis
+                  portfolioId={selectedPortfolio}
+                  eventId={selectedEventId}
+                  priceChanges={{}} // Will be calculated by backend based on event
+                />
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Modal
         isOpen={showCreateModal}

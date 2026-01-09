@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { TestTube, Play, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface TestResult {
   id: number;
@@ -29,6 +30,7 @@ interface TestSuiteStats {
 }
 
 export default function TestingCenter() {
+  const errorHandler = useErrorHandler();
   const [testSuites, setTestSuites] = useState<TestSuite[]>([]);
   const [suiteResults, setSuiteResults] = useState<Record<number, TestResult[]>>({});
   const [suiteStats, setSuiteStats] = useState<Record<number, TestSuiteStats>>({});
@@ -55,8 +57,7 @@ export default function TestingCenter() {
       }
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load test suites:", error);
-      alert(`Failed to load test suites: ${error}`);
+      errorHandler.showError("Failed to load test suites", error);
       setTestSuites([]);
       setLoading(false);
     }

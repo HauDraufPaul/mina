@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Trash2, Activity, Search, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface ProcessInfo {
   pid: number;
@@ -17,6 +18,7 @@ type SortField = "pid" | "name" | "cpu_usage" | "memory_usage" | "status";
 type SortDirection = "asc" | "desc";
 
 export default function ProcessList() {
+  const errorHandler = useErrorHandler();
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [filteredProcesses, setFilteredProcesses] = useState<ProcessInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,8 +123,9 @@ export default function ProcessList() {
       // Refresh processes
       const data = await invoke<ProcessInfo[]>("get_processes");
       setProcesses(data);
+      errorHandler.showSuccess("Process killed successfully");
     } catch (error) {
-      alert(`Failed to kill process: ${error}`);
+      errorHandler.showError("Failed to kill process", error);
     }
   };
 

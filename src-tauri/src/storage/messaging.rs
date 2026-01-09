@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
+use anyhow::Result;
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -152,6 +152,29 @@ impl MessagingStore {
         )?;
 
         Ok(conn.last_insert_rowid())
+    }
+
+    pub fn get_message(&self, message_id: i64) -> Result<Option<Message>> {
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        
+        let mut stmt = conn.prepare(
+            "SELECT id, conversation_id, sender, content, created_at
+             FROM messages
+             WHERE id = ?1",
+        )?;
+        
+        stmt.query_row(params![message_id], |row| {
+            Ok(Message {
+                id: row.get(0)?,
+                conversation_id: row.get(1)?,
+                sender: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })
+        .optional()
+        .map_err(|e| e.into())
     }
 
     pub fn get_conversation_messages(&self, conversation_id: i64, limit: i64) -> Result<Vec<Message>> {

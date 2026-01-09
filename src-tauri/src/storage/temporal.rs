@@ -148,7 +148,8 @@ impl TemporalStore {
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS temporal_events (
@@ -327,7 +328,8 @@ impl TemporalStore {
     }
 
     pub fn list_events(&self, limit: i64, from_ts: Option<i64>, to_ts: Option<i64>) -> Result<Vec<TemporalEvent>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let row_mapper = |row: &rusqlite::Row<'_>| {
             Ok(TemporalEvent {
                 id: row.get(0)?,
@@ -407,7 +409,8 @@ impl TemporalStore {
     }
 
     pub fn get_event(&self, id: i64) -> Result<Option<TemporalEvent>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.query_row(
             "SELECT id, title, summary, start_ts, end_ts, event_type, confidence, severity, novelty_score, volume_score, sentiment_score, cluster_key, created_at, updated_at
              FROM temporal_events WHERE id = ?1",
@@ -436,7 +439,8 @@ impl TemporalStore {
     }
 
     pub fn list_event_evidence(&self, event_id: i64) -> Result<Vec<TemporalEventEvidence>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT event_id, rss_item_id, weight, snippet
              FROM temporal_event_evidence
@@ -459,7 +463,8 @@ impl TemporalStore {
     }
 
     pub fn create_watchlist(&self, name: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT INTO watchlists (name, created_at) VALUES (?1, ?2)",
@@ -469,7 +474,8 @@ impl TemporalStore {
     }
 
     pub fn list_watchlists(&self) -> Result<Vec<Watchlist>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare("SELECT id, name, created_at FROM watchlists ORDER BY name ASC")?;
         let rows = stmt.query_map([], |row| {
             Ok(Watchlist {
@@ -493,7 +499,8 @@ impl TemporalStore {
         weight: f64,
         enabled: bool,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT OR REPLACE INTO watchlist_items (watchlist_id, item_type, value, weight, enabled, created_at)
@@ -504,7 +511,8 @@ impl TemporalStore {
     }
 
     pub fn list_watchlist_items(&self, watchlist_id: i64) -> Result<Vec<WatchlistItem>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, watchlist_id, item_type, value, weight, enabled, created_at
              FROM watchlist_items WHERE watchlist_id = ?1
@@ -537,7 +545,8 @@ impl TemporalStore {
         schedule: Option<&str>,
         escalation_config: Option<&Value>,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let escalation_config_str = escalation_config.map(|v| v.to_string());
         conn.execute(
@@ -549,7 +558,8 @@ impl TemporalStore {
     }
 
     pub fn list_alert_rules(&self) -> Result<Vec<AlertRule>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, enabled, watchlist_id, rule_json, schedule, escalation_config, created_at
              FROM alert_rules ORDER BY created_at DESC",
@@ -579,10 +589,12 @@ impl TemporalStore {
     }
 
     pub fn list_alerts(&self, limit: i64, from_ts: Option<i64>, to_ts: Option<i64>) -> Result<Vec<Alert>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let row_mapper = |row: &rusqlite::Row<'_>| {
             let payload_str: String = row.get(4)?;
-            let payload_json: Value = serde_json::from_str(&payload_str).unwrap_or(Value::Null);
+            let payload_json: Value = serde_json::from_str(&payload_str)
+                .unwrap_or_else(|_| Value::Null);
             Ok(Alert {
                 id: row.get(0)?,
                 rule_id: row.get(1)?,
@@ -653,7 +665,8 @@ impl TemporalStore {
     }
 
     pub fn update_alert_status(&self, alert_id: i64, status: &str, snoozed_until: Option<i64>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "UPDATE alerts SET status = ?1, snoozed_until = ?2 WHERE id = ?3",
             params![status, snoozed_until, alert_id],
@@ -668,7 +681,8 @@ impl TemporalStore {
     }
 
     fn create_alert_if_new(&self, rule_id: i64, event_id: Option<i64>, payload_json: &Value) -> Result<Option<Alert>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         // Avoid spamming duplicates: if an alert exists for same rule+event in last 6 hours and not resolved, skip.
@@ -706,7 +720,8 @@ impl TemporalStore {
     }
 
     pub fn evaluate_alert_rules_mvp(&self, days_back: i64, limit_events: i64) -> Result<Vec<Alert>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let from_ts = now - days_back.max(1).min(365) * 24 * 3600;
 
@@ -829,7 +844,8 @@ impl TemporalStore {
     }
 
     pub fn rebuild_search_index(&self, from_ts: Option<i64>) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute("DELETE FROM fts_documents", [])?;
 
         // Index RSS items
@@ -896,7 +912,8 @@ impl TemporalStore {
     }
 
     pub fn search(&self, query: &str, limit: i64) -> Result<Vec<Value>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT doc_type, doc_id, title, snippet(fts_documents, 3, '[', ']', '…', 12) as snippet, ts
              FROM fts_documents
@@ -924,7 +941,8 @@ impl TemporalStore {
     // Event formation (MVP)
     // =========================
     pub fn rebuild_events_mvp(&self, days_back: i64) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let from_ts = now - days_back * 24 * 3600;
 
@@ -1047,7 +1065,8 @@ impl TemporalStore {
     }
 
     pub fn run_backtest_mvp(&self, from_ts: i64, to_ts: i64) -> Result<BacktestReport> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let total_alerts: i64 = conn.query_row(
             "SELECT COUNT(*) FROM alerts WHERE fired_at BETWEEN ?1 AND ?2",
             params![from_ts, to_ts],
@@ -1141,7 +1160,8 @@ impl TemporalStore {
     }
 
     pub fn set_alert_label(&self, alert_id: i64, label: i64, note: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let label = if label >= 1 { 1 } else { -1 };
         conn.execute(
@@ -1153,7 +1173,8 @@ impl TemporalStore {
     }
 
     pub fn get_alert_label(&self, alert_id: i64) -> Result<Option<AlertLabel>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.query_row(
             "SELECT alert_id, label, note, created_at FROM alert_labels WHERE alert_id = ?1",
             params![alert_id],
@@ -1171,7 +1192,8 @@ impl TemporalStore {
     }
 
     pub fn get_entity_graph_mvp(&self, days_back: i64, max_nodes: usize, max_edges: usize) -> Result<EntityGraph> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         let from_ts = now - days_back.max(1).min(365) * 24 * 3600;
 
@@ -1247,7 +1269,8 @@ impl TemporalStore {
     // Workbench: Features (MVP)
     // =========================
     pub fn create_feature_definition(&self, name: &str, expression: &str, description: Option<&str>) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT INTO feature_definitions (name, expression, description, created_at)
@@ -1258,7 +1281,8 @@ impl TemporalStore {
     }
 
     pub fn list_feature_definitions(&self) -> Result<Vec<FeatureDefinition>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, expression, description, created_at
              FROM feature_definitions
@@ -1281,7 +1305,8 @@ impl TemporalStore {
     }
 
     pub fn list_feature_values(&self, feature_id: i64, from_ts: Option<i64>, to_ts: Option<i64>, limit: i64) -> Result<Vec<FeatureValue>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let limit = limit.max(1).min(5000);
 
         let mut out: Vec<FeatureValue> = Vec::new();
@@ -1384,7 +1409,8 @@ impl TemporalStore {
     // - avg_sentiment(<days>)
     // Materializes daily buckets into feature_values.
     pub fn compute_feature_mvp(&self, feature_id: i64, days_back: i64) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let days_back = days_back.max(1).min(365);
 
         let def: FeatureDefinition = conn.query_row(
@@ -1589,7 +1615,8 @@ impl TemporalStore {
         escalation_level: i32,
         channel: &str,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -1602,7 +1629,8 @@ impl TemporalStore {
     }
 
     pub fn mark_escalation_sent(&self, escalation_id: i64, error_message: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute(
             "UPDATE alert_escalations SET sent = 1, error_message = ?1 WHERE id = ?2",
             params![error_message, escalation_id],
@@ -1611,7 +1639,8 @@ impl TemporalStore {
     }
 
     pub fn get_alert_escalations(&self, alert_id: i64) -> Result<Vec<AlertEscalation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, alert_id, escalated_at, escalation_level, channel, sent, error_message
              FROM alert_escalations

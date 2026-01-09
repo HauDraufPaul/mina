@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import { Timer, AlertCircle, TrendingUp } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface RateLimitBucket {
   name: string;
@@ -13,6 +14,7 @@ interface RateLimitBucket {
 }
 
 export default function RateLimitMonitor() {
+  const errorHandler = useErrorHandler();
   const [buckets, setBuckets] = useState<RateLimitBucket[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,8 +37,7 @@ export default function RateLimitMonitor() {
       setBuckets(data || []);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load rate limit buckets:", error);
-      alert(`Failed to load rate limit buckets: ${error}`);
+      errorHandler.showError("Failed to load rate limit buckets", error);
       setBuckets([]);
       setLoading(false);
     }

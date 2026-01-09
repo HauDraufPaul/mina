@@ -1,8 +1,9 @@
 use crate::storage::messaging::{MessagingStore, MessagingConversation, Message, MessageAttachment};
 use crate::storage::Database;
+use crate::ws::WsServer;
 use serde_json::Value;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{State, Emitter};
 
 #[tauri::command]
 pub fn messaging_create_conversation(
@@ -33,12 +34,32 @@ pub fn send_message(
     sender: String,
     content: String,
     db: State<'_, Mutex<Database>>,
+    ws_server: State<'_, Mutex<WsServer>>,
+    app: tauri::AppHandle,
 ) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = MessagingStore::new(db_guard.conn.clone());
-    store
+    
+    let message_id = store
         .send_message(conversation_id, &sender, &content)
-        .map_err(|e| format!("Failed to send message: {}", e))
+        .map_err(|e| format!("Failed to send message: {}", e))?;
+    
+    // Get the created message
+    if let Ok(Some(message)) = store.get_message(message_id) {
+        // Emit WebSocket event
+        let ws_guard = ws_server.lock().map_err(|e| format!("WebSocket lock error: {}", e))?;
+        let msg = crate::ws::WsMessage::Message(message.clone());
+        let _ = ws_guard.publish("messaging", msg.clone());
+        
+        // Also emit Tauri event for frontend
+        let _ = app.emit("ws-message", serde_json::json!({
+            "type": "message",
+            "data": message,
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        }));
+    }
+    
+    Ok(message_id)
 }
 
 #[tauri::command]

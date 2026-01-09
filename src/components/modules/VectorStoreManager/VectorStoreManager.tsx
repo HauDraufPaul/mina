@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { Database, Plus, Trash2, RefreshCw } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface CollectionStats {
   total: number;
@@ -10,6 +11,7 @@ interface CollectionStats {
 }
 
 export default function VectorStoreManager() {
+  const errorHandler = useErrorHandler();
   const [collections, setCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [stats, setStats] = useState<CollectionStats | null>(null);
@@ -51,7 +53,7 @@ export default function VectorStoreManager() {
 
   const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) {
-      alert("Collection name cannot be empty");
+      errorHandler.showError("Collection name cannot be empty");
       return;
     }
 
@@ -63,20 +65,21 @@ export default function VectorStoreManager() {
       setNewCollectionName("");
       setNewCollectionDim(384);
       await loadCollections();
+      errorHandler.showSuccess("Collection created successfully");
     } catch (error) {
-      alert(`Failed to create collection: ${error}`);
+      errorHandler.showError("Failed to create collection", error);
     }
   };
 
   const handleCleanup = async () => {
     try {
       const count = await invoke<number>("cleanup_expired_vectors");
-      alert(`Cleaned up ${count} expired vectors`);
+      errorHandler.showSuccess(`Cleaned up ${count} expired vectors`);
       if (selectedCollection) {
         await loadStats(selectedCollection);
       }
     } catch (error) {
-      alert(`Failed to cleanup: ${error}`);
+      errorHandler.showError("Failed to cleanup", error);
     }
   };
 

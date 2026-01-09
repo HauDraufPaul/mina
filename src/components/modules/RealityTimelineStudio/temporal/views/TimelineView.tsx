@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
-import { RefreshCw, Layers, ExternalLink } from "lucide-react";
+import { RefreshCw, Layers, ExternalLink, BarChart3 } from "lucide-react";
+import ImpactAnalysis from "../../../PortfolioManager/ImpactAnalysis";
 import { DataSet } from "vis-data";
 import { Timeline } from "vis-timeline/standalone";
 import "vis-timeline/styles/vis-timeline-graph2d.min.css";
@@ -39,6 +40,10 @@ export default function TimelineView() {
   const [loadingEvidence, setLoadingEvidence] = useState(false);
   const [rebuildBusy, setRebuildBusy] = useState(false);
   const [timeline, setTimeline] = useState<any>(null);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [showImpactAnalysis, setShowImpactAnalysis] = useState(false);
+
+  const [portfolios, setPortfolios] = useState<Array<{ id: number; name: string }>>([]);
 
   const loadEvents = async () => {
     setLoading(true);
@@ -50,8 +55,18 @@ export default function TimelineView() {
     }
   };
 
+  const loadPortfolios = async () => {
+    try {
+      const data = await invoke<Array<{ id: number; name: string; created_at: number }>>("list_portfolios");
+      setPortfolios(data);
+    } catch (err) {
+      console.error("Failed to load portfolios:", err);
+    }
+  };
+
   useEffect(() => {
     loadEvents();
+    loadPortfolios();
   }, []);
 
   // Build/update vis-timeline
@@ -233,6 +248,40 @@ export default function TimelineView() {
                   ))}
                 </div>
               )}
+            </Card>
+
+            <Card title="Portfolio Impact Analysis" subtitle="Analyze how this event affects your portfolios">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Select Portfolio</label>
+                  <select
+                    value={selectedPortfolioId || ""}
+                    onChange={(e) => {
+                      const portfolioId = e.target.value ? parseInt(e.target.value) : null;
+                      setSelectedPortfolioId(portfolioId);
+                      setShowImpactAnalysis(portfolioId !== null);
+                    }}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white focus:outline-none focus:border-neon-cyan"
+                  >
+                    <option value="">Select a portfolio...</option>
+                    {portfolios.map((portfolio) => (
+                      <option key={portfolio.id} value={portfolio.id}>
+                        {portfolio.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {showImpactAnalysis && selectedPortfolioId && selectedEvent && (
+                  <div className="mt-4">
+                    <ImpactAnalysis
+                      portfolioId={selectedPortfolioId}
+                      eventId={selectedEvent.id}
+                      priceChanges={{}}
+                    />
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
         )}

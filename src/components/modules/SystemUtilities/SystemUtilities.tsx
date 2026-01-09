@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
 import { HardDrive, Power, Settings, Activity } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface DiskInfo {
   total: number;
@@ -19,6 +20,7 @@ interface SystemInfo {
 }
 
 export default function SystemUtilities() {
+  const errorHandler = useErrorHandler();
   const [diskInfo, setDiskInfo] = useState<DiskInfo | null>(null);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,8 +42,7 @@ export default function SystemUtilities() {
       setSystemInfo(system);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load system data:", error);
-      alert(`Failed to load system data: ${error}`);
+      errorHandler.showError("Failed to load system data", error);
       setLoading(false);
     }
   };
@@ -66,9 +67,9 @@ export default function SystemUtilities() {
   const handlePreventSleep = async () => {
     try {
       await invoke("prevent_sleep");
-      alert("Sleep prevention activated");
+      errorHandler.showSuccess("Sleep prevention activated");
     } catch (error) {
-      alert(`Failed to prevent sleep: ${error}`);
+      errorHandler.showError("Failed to prevent sleep", error);
     }
   };
 

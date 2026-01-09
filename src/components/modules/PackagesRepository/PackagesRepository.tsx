@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import React from "react";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
+import { useErrorHandler } from "@/utils/errorHandler";
 import { 
   Package, 
   RefreshCw, 
@@ -34,6 +35,7 @@ interface HomebrewService {
 }
 
 export default function PackagesRepository() {
+  const errorHandler = useErrorHandler();
   const [packages, setPackages] = useState<HomebrewPackage[]>([]);
   const [services, setServices] = useState<HomebrewService[]>([]);
   const [outdated, setOutdated] = useState<string[]>([]);
@@ -172,8 +174,7 @@ export default function PackagesRepository() {
       setDependencies(deps);
       setSelectedPackage(pkg);
     } catch (error) {
-      console.error("Failed to load dependencies:", error);
-      alert(`Failed to load dependencies: ${error}`);
+      errorHandler.showError("Failed to load dependencies", error);
     } finally {
       setLoadingDependencies(false);
     }
@@ -198,7 +199,7 @@ export default function PackagesRepository() {
     } catch (error) {
       // Revert optimistic update on error
       await loadServices();
-      alert(`Failed to ${action} service: ${error}`);
+      errorHandler.showError(`Failed to ${action} service`, error);
     }
   };
 
