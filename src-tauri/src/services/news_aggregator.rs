@@ -1,5 +1,5 @@
 use crate::providers::news::{BloombergRSS, NewsItem, NewsProvider, OtherFinancialRSS, ReutersRSS};
-use crate::services::TickerMatcher;
+use crate::services::{TickerMatcher, SentimentAnalyzer};
 use crate::storage::{StockNewsItem, StockNewsStore};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
@@ -94,16 +94,20 @@ impl NewsAggregator {
             matcher.match_tickers(&text)
         };
 
+        // Calculate sentiment score
+        let sentiment_score = SentimentAnalyzer::analyze(&text);
+
         // Save to database
         let news_id = {
             let store = self.store.lock().unwrap();
-            store.create_news_item(
+            store.create_news_item_with_sentiment(
                 &item.title,
                 &item.content,
                 &item.url,
                 &item.source,
                 item.source_id.as_deref(),
                 item.published_at,
+                sentiment_score,
             )?
         };
 

@@ -4,7 +4,8 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { realtimeService } from "@/services/realtimeService";
-import { Plus, Bell, Check, Clock } from "lucide-react";
+import { Plus, Bell, Check, Clock, AlertTriangle, Mail, MessageSquare, Webhook, Smartphone } from "lucide-react";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface AlertRule {
   id: number;
@@ -13,6 +14,17 @@ interface AlertRule {
   watchlist_id?: number | null;
   rule_json: any;
   schedule?: string | null;
+  escalation_config?: any;
+  created_at: number;
+}
+
+interface AlertEscalation {
+  id: number;
+  alert_id: number;
+  escalation_level: number;
+  channel: string;
+  sent_at: number | null;
+  error: string | null;
   created_at: number;
 }
 
@@ -38,6 +50,10 @@ export default function AlertsView() {
   const [showCreate, setShowCreate] = useState(false);
   const [newRuleName, setNewRuleName] = useState("Keyword Alert");
   const [newRuleJsonText, setNewRuleJsonText] = useState(JSON.stringify(defaultRuleJson, null, 2));
+  const [escalationConfig, setEscalationConfig] = useState<string>("");
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [escalationHistory, setEscalationHistory] = useState<AlertEscalation[]>([]);
+  const errorHandler = useErrorHandler();
 
   const load = async () => {
     setLoading(true);
@@ -72,17 +88,29 @@ export default function AlertsView() {
     try {
       rule_json = JSON.parse(newRuleJsonText);
     } catch (e) {
-      alert("Invalid JSON in rule.");
+      errorHandler.showError("Invalid JSON in rule", e);
       return;
     }
+    let escalation_config_json = null;
+    if (escalationConfig.trim()) {
+      try {
+        escalation_config_json = JSON.parse(escalationConfig);
+      } catch (e) {
+        errorHandler.showError("Invalid escalation config JSON", e);
+        return;
+      }
+    }
+
     await invoke<number>("temporal_create_alert_rule", {
       name,
       enabled: true,
       watchlistId: null,
       ruleJson: rule_json,
       schedule: null,
+      escalationConfig: escalation_config_json,
     });
     setShowCreate(false);
+    setEscalationConfig("");
     await load();
   };
 
@@ -104,6 +132,42 @@ export default function AlertsView() {
   const labelAlert = async (id: number, label: number) => {
     await invoke("temporal_set_alert_label", { alertId: id, label, note: null });
     await load();
+  };
+
+  const loadEscalationHistory = async (alertId: number) => {
+    try {
+      const history = await invoke<AlertEscalation[]>("get_alert_escalation_history", { alertId });
+      setEscalationHistory(history);
+    } catch (err) {
+      errorHandler.showError("Failed to load escalation history", err);
+    }
+  };
+
+  const manualEscalate = async (alertId: number, level: number, channel: string) => {
+    try {
+      await invoke("escalate_alert", { alertId, escalationLevel: level, channel });
+      await load();
+      if (selectedAlert?.id === alertId) {
+        await loadEscalationHistory(alertId);
+      }
+    } catch (err) {
+      errorHandler.showError("Failed to escalate alert", err);
+    }
+  };
+
+  const getChannelIcon = (channel: string) => {
+    switch (channel) {
+      case "email":
+        return <Mail className="w-3 h-3" />;
+      case "sms":
+        return <MessageSquare className="w-3 h-3" />;
+      case "webhook":
+        return <Webhook className="w-3 h-3" />;
+      case "push":
+        return <Smartphone className="w-3 h-3" />;
+      default:
+        return <AlertTriangle className="w-3 h-3" />;
+    }
   };
 
   return (
@@ -170,7 +234,7 @@ export default function AlertsView() {
                     <span className="text-xs text-gray-500">{new Date(a.fired_at * 1000).toLocaleString()}</span>
                   </div>
                   <div className="text-xs text-gray-500 mt-1">status: {a.status}</div>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <Button variant="secondary" onClick={() => ack(a.id)}>
                       <Check className="w-4 h-4 mr-2" />
                       Ack
@@ -182,6 +246,16 @@ export default function AlertsView() {
                     <Button variant="secondary" onClick={() => resolve(a.id)}>
                       Resolve
                     </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedAlert(a);
+                        loadEscalationHistory(a.id);
+                      }}
+                    >
+                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      Escalations
+                    </Button>
                     <Button variant="secondary" onClick={() => labelAlert(a.id, 1)}>
                       Helpful
                     </Button>
@@ -189,6 +263,38 @@ export default function AlertsView() {
                       Not helpful
                     </Button>
                   </div>
+                  {selectedAlert?.id === a.id && escalationHistory.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <div className="text-xs text-gray-400 mb-2">Escalation History</div>
+                      <div className="space-y-1">
+                        {escalationHistory.map((esc) => (
+                          <div
+                            key={esc.id}
+                            className="flex items-center justify-between text-xs p-2 bg-white/5 rounded"
+                          >
+                            <div className="flex items-center gap-2">
+                              {getChannelIcon(esc.channel)}
+                              <span className="text-gray-300">
+                                Level {esc.escalation_level} • {esc.channel}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {esc.sent_at ? (
+                                <span className="text-neon-green">Sent</span>
+                              ) : (
+                                <span className="text-neon-amber">Pending</span>
+                              )}
+                              {esc.error && (
+                                <span className="text-neon-red text-xs" title={esc.error}>
+                                  Error
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -211,6 +317,18 @@ export default function AlertsView() {
             onChange={(e) => setNewRuleJsonText(e.target.value)}
             className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono h-48"
           />
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Escalation Config (Optional)</label>
+            <textarea
+              value={escalationConfig}
+              onChange={(e) => setEscalationConfig(e.target.value)}
+              placeholder='{"levels": [{"delay_minutes": 5, "channels": ["email"]}, {"delay_minutes": 15, "channels": ["sms", "webhook"]}]}'
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono h-32"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Configure escalation levels with delay_minutes and channels (email, sms, webhook, push)
+            </p>
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowCreate(false)}>
               Cancel

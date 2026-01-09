@@ -5,6 +5,7 @@ pub mod homebrew;
 pub mod system_utils;
 pub mod ollama;
 pub mod news;
+pub mod market_data;
 
 pub use system::SystemProvider;
 pub use network::NetworkProvider;

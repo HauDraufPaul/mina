@@ -14,6 +14,10 @@ pub mod testing;
 pub mod projects;
 pub mod seed_data;
 pub mod stock_news;
+pub mod market_data;
+pub mod portfolio;
+pub mod economic_calendar;
+pub mod messaging;
 
 pub use database::{Database, ErrorRecord};
 pub use migrations::MigrationManager;
@@ -41,8 +45,13 @@ pub use temporal::{
     FeatureDefinition,
     FeatureValue,
     AlertLabel,
+    AlertEscalation,
 };
 pub use testing::{TestingStore, TestSuite, TestResult, TestSuiteStats};
 pub use projects::{ProjectStore, Project};
 pub use stock_news::{StockNewsStore, StockTicker, StockNewsItem, StockNewsTicker};
+pub use market_data::{MarketDataStore, MarketPrice, PriceHistory, MarketSnapshot};
+pub use portfolio::{PortfolioStore, Portfolio, Holding, Transaction};
+pub use economic_calendar::{EconomicCalendarStore, EconomicEvent, EventImpactHistory};
+pub use messaging::{MessagingStore, MessagingConversation, Message, MessageAttachment};
 

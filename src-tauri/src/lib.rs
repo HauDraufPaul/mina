@@ -187,7 +187,14 @@ pub fn run() {
             
             eprintln!("MINA: Stores initialized");
             
+            // Clone connection for escalation checker before moving db
+            let db_conn_for_escalation = db.conn.clone();
             app.manage(Mutex::new(db));
+            
+            // Create escalation checker database reference
+            let db_for_escalation = Arc::new(Mutex::new(Database {
+                conn: db_conn_for_escalation,
+            }));
             
             // Initialize providers
             app.manage(std::sync::Mutex::new(SystemProvider::new()));
@@ -213,9 +220,22 @@ pub fn run() {
             
             // Initialize WebSocket server
             eprintln!("MINA: Initializing WebSocket server...");
-            let ws_server = WsServer::new();
+            let ws_server = Arc::new(WsServer::new());
             ws_server.start_broadcast(app.handle().clone());
-            app.manage(Mutex::new(ws_server));
+            app.manage(Mutex::new(ws_server.clone()));
+            
+            // Initialize market data streamer
+            eprintln!("MINA: Initializing market data streamer...");
+            let market_streamer = Arc::new(services::market_data_stream::MarketDataStreamer::new(ws_server.clone()));
+            market_streamer.start_batching(app.handle().clone());
+            app.manage(Mutex::new(market_streamer));
+            
+            // Start alert escalation checker
+            eprintln!("MINA: Starting alert escalation checker...");
+            services::alert_escalation_checker::AlertEscalationChecker::start_periodic_checks(
+                db_for_escalation,
+                app.handle().clone(),
+            );
             
             eprintln!("MINA: Setup complete, showing window...");
             
@@ -358,6 +378,8 @@ pub fn run() {
             commands::temporal::temporal_list_feature_values,
             commands::temporal::temporal_set_alert_label,
             commands::temporal::temporal_get_alert_label,
+            commands::temporal::escalate_alert,
+            commands::temporal::get_alert_escalation_history,
             commands::testing::create_test_suite,
             commands::testing::list_test_suites,
             commands::testing::save_test_result,
@@ -382,6 +404,37 @@ pub fn run() {
             commands::stock_news::refresh_stock_news,
             commands::stock_news::start_news_stream,
             commands::stock_news::cleanup_old_stock_news,
+            commands::stock_news::get_news_sentiment,
+            commands::stock_news::get_aggregated_sentiment,
+            commands::market_data::get_market_price,
+            commands::market_data::get_market_prices,
+            commands::market_data::get_chart_data,
+            commands::market_data::get_events_for_chart,
+            commands::portfolio::create_portfolio,
+            commands::portfolio::list_portfolios,
+            commands::portfolio::get_portfolio,
+            commands::portfolio::add_holding,
+            commands::portfolio::list_holdings,
+            commands::portfolio::get_holdings_by_ticker,
+            commands::portfolio::update_holding,
+            commands::portfolio::delete_holding,
+            commands::portfolio::get_portfolio_value,
+            commands::portfolio::get_portfolio_impact,
+            commands::portfolio::add_transaction,
+            commands::portfolio::list_transactions,
+            commands::portfolio::delete_portfolio,
+            commands::economic_calendar::create_economic_event,
+            commands::economic_calendar::list_economic_events,
+            commands::economic_calendar::get_economic_event,
+            commands::economic_calendar::get_event_impact_prediction,
+            commands::economic_calendar::record_event_outcome,
+            commands::economic_calendar::get_event_impact_history,
+            commands::messaging::messaging_create_conversation,
+            commands::messaging::messaging_list_conversations,
+            commands::messaging::send_message,
+            commands::messaging::get_conversation_messages,
+            commands::messaging::attach_market_context,
+            commands::messaging::get_message_attachments,
             get_recent_errors,
             save_error
         ])

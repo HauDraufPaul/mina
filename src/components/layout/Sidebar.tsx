@@ -27,6 +27,9 @@ import {
   Layers,
   Gauge,
   Newspaper,
+  TrendingUp,
+  DollarSign,
+  Calendar,
 } from "lucide-react";
 
 interface MenuItem {
@@ -90,6 +93,12 @@ const menuStructure: MenuEntry[] = [
     icon: Gauge,
     items: [
       { path: "/stock-news", icon: Newspaper, label: "Stock News" },
+      { path: "/market-data", icon: TrendingUp, label: "Market Data" },
+      { path: "/portfolio", icon: DollarSign, label: "Portfolio" },
+      { path: "/economic-calendar", icon: Calendar, label: "Economic Calendar" },
+      { path: "/chart-studio", icon: BarChart3, label: "Chart Studio" },
+      { path: "/messaging", icon: Radio, label: "Messaging" },
+      { path: "/sentiment", icon: TrendingUp, label: "Sentiment Analysis" },
     ],
   },
 ];

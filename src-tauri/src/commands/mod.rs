@@ -21,6 +21,10 @@ pub mod projects;
 pub mod ollama;
 pub mod temporal;
 pub mod stock_news;
+pub mod market_data;
+pub mod portfolio;
+pub mod economic_calendar;
+pub mod messaging;
 
 // Re-exports are not needed - commands are registered directly in lib.rs
 

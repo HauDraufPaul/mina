@@ -14,6 +14,8 @@ pub enum WsMessage {
     ConfigUpdate { key: String, value: String },
     StockNews(crate::storage::StockNewsItem),
     StockNewsBatch(Vec<crate::storage::StockNewsItem>),
+    MarketData(crate::storage::MarketPrice),
+    MarketDataBatch(Vec<crate::storage::MarketPrice>),
     Ping,
     Pong,
 }

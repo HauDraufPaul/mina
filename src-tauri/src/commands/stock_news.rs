@@ -1,4 +1,4 @@
-use crate::services::NewsAggregator;
+use crate::services::{NewsAggregator, SentimentAnalyzer};
 use crate::storage::{Database, StockNewsItem, StockNewsStore, StockTicker};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
@@ -8,11 +8,14 @@ pub fn get_stock_tickers(
     index: Option<String>,
     db: State<'_, Mutex<Database>>,
 ) -> Result<Vec<StockTicker>, String> {
+    eprintln!("get_stock_tickers called with index: {:?}", index);
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = StockNewsStore::new(db_guard.conn.clone());
-    store
+    let result = store
         .list_tickers(index.as_deref())
-        .map_err(|e| format!("Failed to list tickers: {}", e))
+        .map_err(|e| format!("Failed to list tickers: {}", e))?;
+    eprintln!("get_stock_tickers returning {} tickers", result.len());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -22,11 +25,20 @@ pub fn get_stock_news(
     since: Option<i64>,
     db: State<'_, Mutex<Database>>,
 ) -> Result<Vec<StockNewsItem>, String> {
-    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    eprintln!("get_stock_news called with tickers: {:?}, limit: {}, since: {:?}", tickers, limit, since);
+    let db_guard = db.lock().map_err(|e| {
+        eprintln!("Database lock error: {}", e);
+        format!("Database lock error: {}", e)
+    })?;
     let store = StockNewsStore::new(db_guard.conn.clone());
-    store
+    let result = store
         .get_news(tickers, limit, since)
-        .map_err(|e| format!("Failed to get news: {}", e))
+        .map_err(|e| {
+            eprintln!("Failed to get news: {}", e);
+            format!("Failed to get news: {}", e)
+        })?;
+    eprintln!("get_stock_news returning {} items", result.len());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -132,5 +144,68 @@ pub fn cleanup_old_stock_news(
     store
         .cleanup_old_news(days)
         .map_err(|e| format!("Failed to cleanup old news: {}", e))
+}
+
+#[tauri::command]
+pub fn get_news_sentiment(
+    ticker: String,
+    days: i64,
+    db: State<'_, Mutex<Database>>,
+) -> Result<Vec<(i64, f64)>, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = StockNewsStore::new(db_guard.conn.clone());
+    
+    let now = chrono::Utc::now().timestamp();
+    let since = now - (days * 24 * 3600);
+    
+    let news = store
+        .get_news(Some(vec![ticker]), 1000, Some(since))
+        .map_err(|e| format!("Failed to get news: {}", e))?;
+    
+    // Group by day and calculate average sentiment
+    let mut daily_sentiment: std::collections::HashMap<i64, Vec<f64>> = std::collections::HashMap::new();
+    
+    for item in news {
+        if let Some(sentiment) = item.sentiment {
+            let day = item.published_at / (24 * 3600);
+            daily_sentiment.entry(day).or_insert_with(Vec::new).push(sentiment);
+        }
+    }
+    
+    let mut result: Vec<(i64, f64)> = daily_sentiment
+        .into_iter()
+        .map(|(day, scores)| (day * 24 * 3600, SentimentAnalyzer::aggregate_sentiment(&scores)))
+        .collect();
+    
+    result.sort_by_key(|(ts, _)| *ts);
+    
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn get_aggregated_sentiment(
+    tickers: Vec<String>,
+    db: State<'_, Mutex<Database>>,
+) -> Result<std::collections::HashMap<String, f64>, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = StockNewsStore::new(db_guard.conn.clone());
+    
+    let mut result = std::collections::HashMap::new();
+    
+    for ticker in tickers {
+        let news = store
+            .get_news(Some(vec![ticker.clone()]), 100, None)
+            .map_err(|e| format!("Failed to get news: {}", e))?;
+        
+        let sentiments: Vec<f64> = news
+            .into_iter()
+            .filter_map(|item| item.sentiment)
+            .collect();
+        
+        let avg_sentiment = SentimentAnalyzer::aggregate_sentiment(&sentiments);
+        result.insert(ticker, avg_sentiment);
+    }
+    
+    Ok(result)
 }
 

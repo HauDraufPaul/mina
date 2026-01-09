@@ -24,6 +24,12 @@ import VectorSearch from "./components/modules/VectorSearch/VectorSearch";
 import AdvancedAnalytics from "./components/modules/AdvancedAnalytics/AdvancedAnalytics";
 import GridLayoutView from "./components/GridLayout/GridLayoutView";
 import { NewsPanel } from "./components/StockNews";
+import MarketDataHub from "./components/modules/MarketDataHub/MarketDataHub";
+import PortfolioManager from "./components/modules/PortfolioManager/PortfolioManager";
+import EconomicCalendar from "./components/modules/EconomicCalendar/EconomicCalendar";
+import ChartStudio from "./components/modules/ChartStudio/ChartStudio";
+import MessagingHub from "./components/modules/Messaging/MessagingHub";
+import SentimentAnalysis from "./components/modules/SentimentAnalysis/SentimentAnalysis";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +69,12 @@ function App() {
             <Route path="/analytics" element={<AdvancedAnalytics />} />
             <Route path="/grid" element={<GridLayoutView />} />
             <Route path="/stock-news" element={<NewsPanel />} />
+            <Route path="/market-data" element={<MarketDataHub />} />
+            <Route path="/portfolio" element={<PortfolioManager />} />
+            <Route path="/economic-calendar" element={<EconomicCalendar />} />
+            <Route path="/chart-studio" element={<ChartStudio />} />
+            <Route path="/messaging" element={<MessagingHub />} />
+            <Route path="/sentiment" element={<SentimentAnalysis />} />
           </Routes>
         </Layout>
       </BrowserRouter>

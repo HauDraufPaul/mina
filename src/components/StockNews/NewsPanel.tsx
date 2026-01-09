@@ -7,8 +7,8 @@ import { RefreshCw, Search, X } from "lucide-react";
 import Button from "../ui/Button";
 
 export default function NewsPanel() {
-  const { refreshNews, loading } = useStockNews({ autoFetch: true, autoSubscribe: true });
-  const { getFilteredNews, searchQuery, setSearchQuery } = useStockNewsStore();
+  const { refreshNews, loading, fetchNews } = useStockNews({ autoFetch: true, autoSubscribe: true });
+  const { getFilteredNews, searchQuery, setSearchQuery, newsItems } = useStockNewsStore();
   const [localSearch, setLocalSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -16,8 +16,17 @@ export default function NewsPanel() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refreshNews();
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      console.log("Refreshing news...");
+      const count = await refreshNews();
+      console.log(`Refresh complete, fetched ${count} items`);
+      // Also fetch the news to update the UI
+      await fetchNews();
+    } catch (err) {
+      console.error("Refresh failed:", err);
+    } finally {
+      setTimeout(() => setRefreshing(false), 1000);
+    }
   };
 
   const handleSearch = () => {
@@ -96,6 +105,24 @@ export default function NewsPanel() {
             <div className="text-center">
               <RefreshCw className="w-8 h-8 text-neon-cyan animate-spin mx-auto mb-2" />
               <p className="text-gray-400 font-mono">Loading news...</p>
+              <p className="text-xs text-gray-500 mt-2">
+                Fetching from RSS feeds...
+              </p>
+            </div>
+          </div>
+        ) : filteredNews.length === 0 && newsItems.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <p className="text-gray-400 font-mono">No news available yet</p>
+              <p className="text-sm text-gray-500">
+                The system is polling RSS feeds every 60 seconds.
+              </p>
+              <p className="text-sm text-gray-500">
+                Click the refresh button above to fetch news immediately.
+              </p>
+              <Button onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? "Fetching..." : "Fetch News Now"}
+              </Button>
             </div>
           </div>
         ) : filteredNews.length === 0 ? (
@@ -103,7 +130,7 @@ export default function NewsPanel() {
             <div className="text-center">
               <p className="text-gray-400 font-mono">No news found</p>
               <p className="text-sm text-gray-500 mt-2">
-                Try adjusting your filters
+                Try adjusting your filters or clearing them
               </p>
             </div>
           </div>

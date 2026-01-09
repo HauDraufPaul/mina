@@ -34,13 +34,16 @@ export function useStockNews(options: UseStockNewsOptions = {}) {
 
   // Fetch tickers
   const fetchTickers = useCallback(async (index?: string) => {
+    console.log("fetchTickers called with index:", index);
     try {
       const result = await invoke<StockTicker[]>("get_stock_tickers", {
         index: index || null,
       });
+      console.log("fetchTickers got result:", result.length, "tickers");
       setTickers(result);
       return result;
     } catch (err) {
+      console.error("fetchTickers error:", err);
       const errorMsg = err instanceof Error ? err.message : "Failed to fetch tickers";
       setError(errorMsg);
       return [];
@@ -50,6 +53,7 @@ export function useStockNews(options: UseStockNewsOptions = {}) {
   // Fetch news
   const fetchNews = useCallback(
     async (options?: { tickers?: string[]; limit?: number; since?: number }) => {
+      console.log("fetchNews called with options:", options);
       setLoading(true);
       setError(null);
       try {
@@ -58,9 +62,11 @@ export function useStockNews(options: UseStockNewsOptions = {}) {
           limit: options?.limit || limit,
           since: options?.since || null,
         });
+        console.log("fetchNews got result:", result.length, "items");
         setNewsItems(result);
         return result;
       } catch (err) {
+        console.error("fetchNews error:", err);
         const errorMsg = err instanceof Error ? err.message : "Failed to fetch news";
         setError(errorMsg);
         return [];
@@ -166,8 +172,16 @@ export function useStockNews(options: UseStockNewsOptions = {}) {
   // Initial fetch
   useEffect(() => {
     if (autoFetch) {
-      fetchTickers();
-      fetchNews({ tickers: tickers.length > 0 ? tickers : undefined });
+      const doInitialFetch = async () => {
+        try {
+          await fetchTickers();
+          await fetchNews({ tickers: tickers.length > 0 ? tickers : undefined });
+        } catch (err) {
+          console.error("Initial fetch failed:", err);
+          setLoading(false);
+        }
+      };
+      doInitialFetch();
     }
   }, [autoFetch]); // Only run on mount
 

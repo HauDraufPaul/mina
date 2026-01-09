@@ -180,13 +180,14 @@ pub fn temporal_create_alert_rule(
     watchlist_id: Option<i64>,
     rule_json: Value,
     schedule: Option<String>,
+    escalation_config: Option<Value>,
     db: State<'_, Mutex<Database>>,
 ) -> Result<i64, String> {
     let enabled = enabled.unwrap_or(true);
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = TemporalStore::new(db_guard.conn.clone());
     store
-        .create_alert_rule(&name, enabled, watchlist_id, &rule_json, schedule.as_deref())
+        .create_alert_rule(&name, enabled, watchlist_id, &rule_json, schedule.as_deref(), escalation_config.as_ref())
         .map_err(|e| format!("Failed to create alert rule: {}", e))
 }
 
@@ -375,6 +376,32 @@ pub fn temporal_get_alert_label(
     store
         .get_alert_label(alert_id)
         .map_err(|e| format!("Failed to get label: {}", e))
+}
+
+#[tauri::command]
+pub fn escalate_alert(
+    alert_id: i64,
+    escalation_level: i32,
+    channel: String,
+    db: State<'_, Mutex<Database>>,
+) -> Result<i64, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = TemporalStore::new(db_guard.conn.clone());
+    store
+        .create_escalation(alert_id, escalation_level, &channel)
+        .map_err(|e| format!("Failed to escalate alert: {}", e))
+}
+
+#[tauri::command]
+pub fn get_alert_escalation_history(
+    alert_id: i64,
+    db: State<'_, Mutex<Database>>,
+) -> Result<Vec<crate::storage::temporal::AlertEscalation>, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let store = TemporalStore::new(db_guard.conn.clone());
+    store
+        .get_alert_escalations(alert_id)
+        .map_err(|e| format!("Failed to get escalation history: {}", e))
 }
 
 

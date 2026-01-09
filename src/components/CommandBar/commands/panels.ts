@@ -1,4 +1,5 @@
 import { Command } from "./types";
+import { listAvailableWidgets, getWidgetMetadata } from "../../widgets/WidgetRegistry";
 import { useGridLayoutStore } from "../../../stores/gridLayoutStore";
 
 export const panelCommands: Command[] = [
@@ -79,6 +80,63 @@ export const panelCommands: Command[] = [
     execute: (_args, context) => {
       console.log("Executing grid command, navigating to /grid");
       context.navigate("/grid");
+    },
+  },
+  {
+    id: "add-widget",
+    name: "add-widget",
+    description: "Add a widget to the grid layout",
+    aliases: ["widget", "w"],
+    category: "Panels",
+    execute: (args, context) => {
+      if (args.length === 0) {
+        throw new Error("Usage: add-widget <widget-type>");
+      }
+      const widgetType = args[0];
+      const { addPanel, getCurrentLayout, createLayout, setCurrentLayout } = useGridLayoutStore.getState();
+      
+      // Validate widget type
+      const availableWidgets = listAvailableWidgets();
+      if (!availableWidgets.includes(widgetType)) {
+        throw new Error(`Unknown widget type: ${widgetType}. Available: ${availableWidgets.join(", ")}`);
+      }
+      
+      // Ensure we have a layout
+      let layout = getCurrentLayout();
+      if (!layout) {
+        layout = createLayout("Default Layout");
+        setCurrentLayout(layout.id);
+      }
+      
+      // Get widget metadata for default config
+      const metadata = getWidgetMetadata(widgetType);
+      const defaultConfig = metadata?.defaultConfig || {};
+      
+      // Create widget panel
+      const panel = {
+        id: `widget-${Date.now()}`,
+        type: "widget" as const,
+        component: widgetType,
+        position: { row: 0, col: 0 },
+        size: { width: 1, height: 1 },
+        config: defaultConfig,
+        minimized: false,
+        maximized: false,
+        title: metadata?.name || widgetType,
+      };
+      
+      addPanel(panel);
+      
+      // Navigate to grid view
+      context.navigate("/grid");
+    },
+    autocomplete: (args) => {
+      const widgets = listAvailableWidgets();
+      if (args.length === 0) {
+        return widgets;
+      }
+      const query = args[0].toLowerCase();
+      return widgets.filter((w) => w.toLowerCase().includes(query));
     },
   },
 ];

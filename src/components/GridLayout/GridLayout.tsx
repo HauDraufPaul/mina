@@ -3,6 +3,8 @@ import { Panel } from "./types";
 import GridPanel from "./GridPanel";
 import { useGridLayoutStore } from "../../stores/gridLayoutStore";
 import { Group, Panel as ResizablePanel, Separator } from "react-resizable-panels";
+import { getPanelComponent } from "./PanelRegistry";
+import { getWidgetComponent } from "../widgets/WidgetRegistry";
 
 interface GridLayoutProps {
   layoutId?: string;
@@ -38,6 +40,25 @@ export default function GridLayout({
   const currentLayout = getCurrentLayout();
   const layoutPanels = currentLayout?.panels || [];
 
+  const renderPanelContent = (panel: Panel): ReactNode => {
+    // Check if it's a widget
+    if (panel.type === "widget") {
+      const WidgetComponent = getWidgetComponent(panel.component);
+      if (WidgetComponent) {
+        return <WidgetComponent config={panel.config || {}} />;
+      }
+    }
+
+    // Check regular panel components
+    const Component = getPanelComponent(panel.component);
+    if (Component) {
+      return <Component />;
+    }
+
+    // Fallback
+    return <div className="text-gray-400">Panel: {panel.component}</div>;
+  };
+
   useEffect(() => {
     if (onLayoutChange) {
       onLayoutChange(layoutPanels);
@@ -67,9 +88,10 @@ export default function GridLayout({
           <div className="flex-1 flex flex-col gap-2 p-2 h-full">
             {leftPanels.map((panel) => {
               const panelData = panels[panel.id] || panel;
+              const Component = renderPanelContent(panelData);
               return (
                 <GridPanel key={panel.id} panel={panelData}>
-                  {children ? children(panelData) : <div>Panel: {panel.component}</div>}
+                  {children ? children(panelData) : Component}
                 </GridPanel>
               );
             })}
@@ -82,9 +104,10 @@ export default function GridLayout({
               <div className="flex-1 flex flex-col gap-2 p-2 h-full">
                 {rightPanels.map((panel) => {
                   const panelData = panels[panel.id] || panel;
+                  const Component = renderPanelContent(panelData);
                   return (
                     <GridPanel key={panel.id} panel={panelData}>
-                      {children ? children(panelData) : <div>Panel: {panel.component}</div>}
+                      {children ? children(panelData) : Component}
                     </GridPanel>
                   );
                 })}

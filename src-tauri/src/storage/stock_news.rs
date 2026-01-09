@@ -212,6 +212,36 @@ impl StockNewsStore {
         Ok(id)
     }
 
+    pub fn create_news_item_with_sentiment(
+        &self,
+        title: &str,
+        content: &str,
+        url: &str,
+        source: &str,
+        source_id: Option<&str>,
+        published_at: i64,
+        sentiment: f64,
+    ) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().timestamp();
+
+        conn.execute(
+            "INSERT OR IGNORE INTO stock_news 
+             (title, content, url, source, source_id, published_at, fetched_at, sentiment, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![title, content, url, source, source_id, published_at, now, sentiment, now],
+        )?;
+
+        // Get the ID
+        let id: i64 = conn.query_row(
+            "SELECT id FROM stock_news WHERE url = ?1",
+            params![url],
+            |row| row.get(0),
+        )?;
+
+        Ok(id)
+    }
+
     pub fn get_news_item(&self, id: i64) -> Result<Option<StockNewsItem>> {
         let conn = self.conn.lock().unwrap();
 
@@ -324,11 +354,24 @@ impl StockNewsStore {
             })
         })?;
 
+        // Collect items first
         let mut news_items = Vec::new();
         for row in rows {
-            let mut item = row?;
-            item.tickers = self.get_news_tickers(item.id)?;
-            news_items.push(item);
+            news_items.push(row?);
+        }
+
+        // Now get tickers for each item (can't call self.get_news_tickers while holding the lock)
+        // So we need to get them directly here
+        for item in &mut news_items {
+            let mut ticker_stmt = conn.prepare(
+                "SELECT ticker FROM stock_news_tickers WHERE news_id = ?1 ORDER BY confidence DESC",
+            )?;
+            let ticker_rows = ticker_stmt.query_map(params![item.id], |row| row.get(0))?;
+            let mut item_tickers = Vec::new();
+            for ticker_row in ticker_rows {
+                item_tickers.push(ticker_row?);
+            }
+            item.tickers = item_tickers;
         }
 
         Ok(news_items)
@@ -390,11 +433,23 @@ impl StockNewsStore {
             })
         })?;
 
+        // Collect items first
         let mut news_items = Vec::new();
         for row in rows {
-            let mut item = row?;
-            item.tickers = self.get_news_tickers(item.id)?;
-            news_items.push(item);
+            news_items.push(row?);
+        }
+
+        // Now get tickers for each item
+        for item in &mut news_items {
+            let mut ticker_stmt = conn.prepare(
+                "SELECT ticker FROM stock_news_tickers WHERE news_id = ?1 ORDER BY confidence DESC",
+            )?;
+            let ticker_rows = ticker_stmt.query_map(params![item.id], |row| row.get(0))?;
+            let mut item_tickers = Vec::new();
+            for ticker_row in ticker_rows {
+                item_tickers.push(ticker_row?);
+            }
+            item.tickers = item_tickers;
         }
 
         Ok(news_items)

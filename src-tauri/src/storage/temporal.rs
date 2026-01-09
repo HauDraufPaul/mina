@@ -57,6 +57,7 @@ pub struct AlertRule {
     pub watchlist_id: Option<i64>,
     pub rule_json: Value,
     pub schedule: Option<String>,
+    pub escalation_config: Option<Value>, // Escalation configuration JSON
     pub created_at: i64,
 }
 
@@ -214,6 +215,7 @@ impl TemporalStore {
                 watchlist_id INTEGER,
                 rule_json TEXT NOT NULL,
                 schedule TEXT,
+                escalation_config TEXT,
                 created_at INTEGER NOT NULL,
                 FOREIGN KEY (watchlist_id) REFERENCES watchlists(id) ON DELETE SET NULL
             )",
@@ -243,6 +245,25 @@ impl TemporalStore {
                 created_at INTEGER NOT NULL,
                 FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE
             )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS alert_escalations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER NOT NULL,
+                escalated_at INTEGER NOT NULL,
+                escalation_level INTEGER NOT NULL,
+                channel TEXT NOT NULL,
+                sent INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_escalations_alert ON alert_escalations(alert_id)",
             [],
         )?;
 
@@ -514,13 +535,15 @@ impl TemporalStore {
         watchlist_id: Option<i64>,
         rule_json: &Value,
         schedule: Option<&str>,
+        escalation_config: Option<&Value>,
     ) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().timestamp();
+        let escalation_config_str = escalation_config.map(|v| v.to_string());
         conn.execute(
-            "INSERT INTO alert_rules (name, enabled, watchlist_id, rule_json, schedule, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![name, if enabled { 1 } else { 0 }, watchlist_id, rule_json.to_string(), schedule, now],
+            "INSERT INTO alert_rules (name, enabled, watchlist_id, rule_json, schedule, escalation_config, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![name, if enabled { 1 } else { 0 }, watchlist_id, rule_json.to_string(), schedule, escalation_config_str, now],
         )?;
         Ok(conn.last_insert_rowid())
     }
@@ -528,12 +551,15 @@ impl TemporalStore {
     pub fn list_alert_rules(&self) -> Result<Vec<AlertRule>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, name, enabled, watchlist_id, rule_json, schedule, created_at
+            "SELECT id, name, enabled, watchlist_id, rule_json, schedule, escalation_config, created_at
              FROM alert_rules ORDER BY created_at DESC",
         )?;
         let rows = stmt.query_map([], |row| {
             let rule_json_str: String = row.get(4)?;
             let rule_json: Value = serde_json::from_str(&rule_json_str).unwrap_or(Value::Null);
+            let escalation_config_str: Option<String> = row.get(6)?;
+            let escalation_config = escalation_config_str
+                .and_then(|s| serde_json::from_str(&s).ok());
             Ok(AlertRule {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -541,7 +567,8 @@ impl TemporalStore {
                 watchlist_id: row.get(3)?,
                 rule_json,
                 schedule: row.get(5)?,
-                created_at: row.get(6)?,
+                escalation_config,
+                created_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -634,6 +661,12 @@ impl TemporalStore {
         Ok(())
     }
 
+    fn check_alert_escalation(&self, alert: &Alert, rule: &AlertRule) -> Result<()> {
+        use crate::services::alert_escalator::AlertEscalator;
+        let _ = AlertEscalator::check_and_escalate(self, alert, rule);
+        Ok(())
+    }
+
     fn create_alert_if_new(&self, rule_id: i64, event_id: Option<i64>, payload_json: &Value) -> Result<Option<Alert>> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().timestamp();
@@ -679,7 +712,7 @@ impl TemporalStore {
 
         // Load enabled rules
         let mut rules_stmt = conn.prepare(
-            "SELECT id, name, enabled, watchlist_id, rule_json, schedule, created_at
+            "SELECT id, name, enabled, watchlist_id, rule_json, schedule, escalation_config, created_at
              FROM alert_rules
              WHERE enabled = 1
              ORDER BY created_at DESC",
@@ -687,6 +720,9 @@ impl TemporalStore {
         let rule_rows = rules_stmt.query_map([], |row| {
             let rule_json_str: String = row.get(4)?;
             let rule_json: Value = serde_json::from_str(&rule_json_str).unwrap_or(Value::Null);
+            let escalation_config_str: Option<String> = row.get(6)?;
+            let escalation_config = escalation_config_str
+                .and_then(|s| serde_json::from_str(&s).ok());
             Ok(AlertRule {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -694,7 +730,8 @@ impl TemporalStore {
                 watchlist_id: row.get(3)?,
                 rule_json,
                 schedule: row.get(5)?,
-                created_at: row.get(6)?,
+                escalation_config,
+                created_at: row.get(7)?,
             })
         })?;
         let mut rules: Vec<AlertRule> = Vec::new();
@@ -778,6 +815,10 @@ impl TemporalStore {
                         "scores": { "sentiment": event.sentiment_score, "novelty": event.novelty_score, "volume": event.volume_score }
                     });
                     if let Some(alert) = self.create_alert_if_new(rule.id, Some(event.id), &payload)? {
+                        // Trigger escalation check for new alert
+                        if let Err(e) = self.check_alert_escalation(&alert, &rule) {
+                            eprintln!("Failed to check escalation for alert {}: {}", alert.id, e);
+                        }
                         created.push(alert);
                     }
                 }
@@ -1527,6 +1568,75 @@ fn condition_matches_mvp(
             !a.is_empty() && !b.is_empty() && entities_lower.contains(&a) && entities_lower.contains(&b)
         }
         _ => false,
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertEscalation {
+    pub id: i64,
+    pub alert_id: i64,
+    pub escalated_at: i64,
+    pub escalation_level: i32,
+    pub channel: String, // email|sms|push|webhook
+    pub sent: bool,
+    pub error_message: Option<String>,
+}
+
+impl TemporalStore {
+    pub fn create_escalation(
+        &self,
+        alert_id: i64,
+        escalation_level: i32,
+        channel: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().timestamp();
+
+        conn.execute(
+            "INSERT INTO alert_escalations (alert_id, escalated_at, escalation_level, channel, sent)
+             VALUES (?1, ?2, ?3, ?4, 0)",
+            params![alert_id, now, escalation_level, channel],
+        )?;
+
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn mark_escalation_sent(&self, escalation_id: i64, error_message: Option<&str>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE alert_escalations SET sent = 1, error_message = ?1 WHERE id = ?2",
+            params![error_message, escalation_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_alert_escalations(&self, alert_id: i64) -> Result<Vec<AlertEscalation>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, alert_id, escalated_at, escalation_level, channel, sent, error_message
+             FROM alert_escalations
+             WHERE alert_id = ?1
+             ORDER BY escalated_at ASC",
+        )?;
+
+        let rows = stmt.query_map(params![alert_id], |row| {
+            Ok(AlertEscalation {
+                id: row.get(0)?,
+                alert_id: row.get(1)?,
+                escalated_at: row.get(2)?,
+                escalation_level: row.get(3)?,
+                channel: row.get(4)?,
+                sent: row.get::<_, i64>(5)? == 1,
+                error_message: row.get(6)?,
+            })
+        })?;
+
+        let mut escalations = Vec::new();
+        for row in rows {
+            escalations.push(row?);
+        }
+
+        Ok(escalations)
     }
 }
 
