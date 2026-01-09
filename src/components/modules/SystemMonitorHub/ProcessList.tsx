@@ -35,7 +35,7 @@ export default function ProcessList() {
         setProcesses(data);
         setLoading(false);
       } catch (error) {
-        console.error("Failed to fetch processes:", error);
+        errorHandler.showError("Failed to fetch processes", error);
         setLoading(false);
       }
     };

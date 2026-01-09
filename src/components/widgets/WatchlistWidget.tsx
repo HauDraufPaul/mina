@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetProps } from "./WidgetRegistry";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface TickerPrice {
   ticker: string;
@@ -10,6 +11,7 @@ interface TickerPrice {
 }
 
 export default function WatchlistWidget({ config }: WidgetProps) {
+  const errorHandler = useErrorHandler();
   const [prices, setPrices] = useState<TickerPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const tickers = (config.tickers as string[]) || ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"];
@@ -29,7 +31,7 @@ export default function WatchlistWidget({ config }: WidgetProps) {
 
         setPrices(items);
       } catch (err) {
-        console.error("Failed to load prices:", err);
+        errorHandler.showError("Failed to load prices", err);
       } finally {
         setLoading(false);
       }

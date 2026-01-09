@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetProps } from "./WidgetRegistry";
 import Card from "../ui/Card";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface NewsItem {
   id: number;
@@ -13,6 +14,7 @@ interface NewsItem {
 }
 
 export default function NewsWidget({ config }: WidgetProps) {
+  const errorHandler = useErrorHandler();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const ticker = (config.ticker as string) || null;
@@ -69,7 +71,7 @@ export default function NewsWidget({ config }: WidgetProps) {
         
         setNews(items);
       } catch (err) {
-        console.error("Failed to load news:", err);
+        errorHandler.showError("Failed to load news", err);
       } finally {
         setLoading(false);
       }

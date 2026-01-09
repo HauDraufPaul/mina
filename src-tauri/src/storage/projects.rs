@@ -20,12 +20,15 @@ pub struct ProjectStore {
 impl ProjectStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = ProjectStore { conn };
-        store.init_schema().unwrap();
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: ProjectStore schema initialization failed: {}", e);
+        }
         store
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS projects (
@@ -48,7 +51,8 @@ impl ProjectStore {
     }
 
     pub fn create_project(&self, name: &str, project_type: &str, content: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -61,23 +65,24 @@ impl ProjectStore {
     }
 
     pub fn update_project(&self, id: i64, name: Option<&str>, content: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
-        if name.is_some() && content.is_some() {
+        if let (Some(n), Some(c)) = (name, content) {
             conn.execute(
                 "UPDATE projects SET name = ?1, content = ?2, updated_at = ?3 WHERE id = ?4",
-                params![name.unwrap(), content.unwrap(), now, id],
+                params![n, c, now, id],
             )?;
-        } else if name.is_some() {
+        } else if let Some(n) = name {
             conn.execute(
                 "UPDATE projects SET name = ?1, updated_at = ?2 WHERE id = ?3",
-                params![name.unwrap(), now, id],
+                params![n, now, id],
             )?;
-        } else if content.is_some() {
+        } else if let Some(c) = content {
             conn.execute(
                 "UPDATE projects SET content = ?1, updated_at = ?2 WHERE id = ?3",
-                params![content.unwrap(), now, id],
+                params![c, now, id],
             )?;
         }
 
@@ -85,7 +90,8 @@ impl ProjectStore {
     }
 
     pub fn list_projects(&self, project_type: Option<&str>) -> Result<Vec<Project>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut projects = Vec::new();
         
         if let Some(pt) = project_type {
@@ -127,7 +133,8 @@ impl ProjectStore {
     }
 
     pub fn get_project(&self, id: i64) -> Result<Option<Project>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let project: Option<Project> = conn
             .query_row(
@@ -150,7 +157,8 @@ impl ProjectStore {
     }
 
     pub fn delete_project(&self, id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
         Ok(())
     }

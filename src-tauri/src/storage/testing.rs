@@ -29,12 +29,15 @@ pub struct TestingStore {
 impl TestingStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = TestingStore { conn };
-        store.init_schema().unwrap();
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: TestingStore schema initialization failed: {}", e);
+        }
         store
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS test_suites (
@@ -74,7 +77,8 @@ impl TestingStore {
     }
 
     pub fn create_suite(&self, name: &str, test_type: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -94,7 +98,8 @@ impl TestingStore {
     }
 
     pub fn list_suites(&self) -> Result<Vec<TestSuite>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, test_type, created_at FROM test_suites ORDER BY name"
         )?;
@@ -123,7 +128,8 @@ impl TestingStore {
         duration: Option<f64>,
         error: Option<&str>,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let executed_at = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -136,7 +142,8 @@ impl TestingStore {
     }
 
     pub fn get_suite_results(&self, suite_id: i64) -> Result<Vec<TestResult>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, suite_id, name, status, duration, error, executed_at
              FROM test_results
@@ -164,7 +171,8 @@ impl TestingStore {
     }
 
     pub fn get_suite_name(&self, suite_id: i64) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let name: Option<String> = conn
             .query_row(
                 "SELECT name FROM test_suites WHERE id = ?1",
@@ -176,7 +184,8 @@ impl TestingStore {
     }
 
     pub fn get_suite_stats(&self, suite_id: i64) -> Result<TestSuiteStats> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let total: i64 = conn.query_row(
             "SELECT COUNT(*) FROM test_results WHERE suite_id = ?1",

@@ -1,7 +1,9 @@
+import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "./components/ui/Toast";
 import Layout from "./components/layout/Layout";
+import { notificationService } from "./services/notificationService";
 import RadialHub from "./components/RadialHub/RadialHub";
 import SystemMonitorHub from "./components/modules/SystemMonitorHub/SystemMonitorHub";
 import NetworkConstellation from "./components/modules/NetworkConstellation/NetworkConstellation";
@@ -41,6 +43,19 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  // Setup notification service
+  React.useEffect(() => {
+    // Request notification permission on app start
+    notificationService.requestPermission();
+    
+    // Setup event listeners for notifications
+    const cleanup = notificationService.setupEventListeners();
+    
+    return () => {
+      cleanup();
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>

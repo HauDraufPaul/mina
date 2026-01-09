@@ -41,13 +41,13 @@ export default function ConfigurationManager() {
             loaded.push({ key, value: "" });
           }
         } catch (error) {
-          console.error(`Failed to load config ${key}:`, error);
+          errorHandler.showError(`Failed to load config ${key}`, error);
           loaded.push({ key, value: "" });
         }
       }
       setConfigs(loaded);
     } catch (error) {
-      console.error("Failed to load configs:", error);
+      errorHandler.showError("Failed to load configs", error);
     } finally {
       setLoading(false);
     }

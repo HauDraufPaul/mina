@@ -43,12 +43,12 @@ export type RealtimeEventType =
 
 export interface RealtimeEvent {
   type: RealtimeEventType;
-  data: any;
+  data: unknown;
   timestamp: number;
 }
 
 class RealtimeService {
-  private listeners: Map<RealtimeEventType, Set<(data: any) => void>> = new Map();
+  private listeners: Map<RealtimeEventType, Set<(data: unknown) => void>> = new Map();
   private isListening = false;
 
   async start() {
@@ -71,7 +71,7 @@ class RealtimeService {
     }
   }
 
-  subscribe(type: RealtimeEventType, callback: (data: any) => void) {
+  subscribe(type: RealtimeEventType, callback: (data: unknown) => void) {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
@@ -93,7 +93,7 @@ class RealtimeService {
     };
   }
 
-  unsubscribe(type: RealtimeEventType, callback: (data: any) => void) {
+  unsubscribe(type: RealtimeEventType, callback: (data: unknown) => void) {
     const listeners = this.listeners.get(type);
     if (listeners) {
       listeners.delete(callback);

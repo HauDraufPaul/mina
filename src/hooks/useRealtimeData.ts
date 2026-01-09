@@ -6,7 +6,7 @@ export interface UseRealtimeDataOptions<T> {
   topic: RealtimeEventType;
   initialData?: T;
   enabled?: boolean;
-  transform?: (data: any) => T;
+  transform?: (data: unknown) => T;
   debounce?: number;
   onUpdate?: (data: T) => void;
   fallbackPolling?: boolean;
@@ -14,7 +14,7 @@ export interface UseRealtimeDataOptions<T> {
   fetchInitialData?: () => Promise<T>;
 }
 
-export function useRealtimeData<T = any>(
+export function useRealtimeData<T = unknown>(
   topic: RealtimeEventType,
   options: Omit<UseRealtimeDataOptions<T>, "topic"> = {}
 ) {
@@ -63,7 +63,7 @@ export function useRealtimeData<T = any>(
       return;
     }
 
-    const handleUpdate = (updateData: any) => {
+    const handleUpdate = (updateData: unknown) => {
       try {
         let transformedData: T;
         if (transform) {

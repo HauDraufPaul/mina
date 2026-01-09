@@ -52,7 +52,8 @@ impl MarketDataStore {
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         // Market prices table (current/latest prices)
         conn.execute(
@@ -116,7 +117,8 @@ impl MarketDataStore {
     }
 
     pub fn upsert_price(&self, price: &MarketPrice) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -137,7 +139,8 @@ impl MarketDataStore {
     }
 
     pub fn get_price(&self, ticker: &str) -> Result<Option<MarketPrice>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let price = conn
             .query_row(
@@ -162,7 +165,8 @@ impl MarketDataStore {
     }
 
     pub fn get_prices(&self, tickers: &[String]) -> Result<Vec<MarketPrice>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let placeholders = tickers.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let query = format!(
             "SELECT ticker, price, change, change_percent, volume, timestamp
@@ -195,7 +199,8 @@ impl MarketDataStore {
     }
 
     pub fn insert_price_history(&self, history: &PriceHistory) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -223,7 +228,8 @@ impl MarketDataStore {
         to_ts: i64,
         limit: Option<i64>,
     ) -> Result<Vec<PriceHistory>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let limit = limit.unwrap_or(1000).max(1).min(10000);
 
         let mut stmt = conn.prepare(
@@ -256,7 +262,8 @@ impl MarketDataStore {
     }
 
     pub fn upsert_snapshot(&self, snapshot: &MarketSnapshot) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -281,7 +288,8 @@ impl MarketDataStore {
     }
 
     pub fn get_snapshot(&self, ticker: &str) -> Result<Option<MarketSnapshot>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let snapshot = conn
             .query_row(

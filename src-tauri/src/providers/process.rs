@@ -41,7 +41,8 @@ impl ProcessProvider {
         }
         
         // Sort by CPU usage descending
-        processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap());
+        processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage)
+            .unwrap_or(std::cmp::Ordering::Equal));
         
         processes
     }

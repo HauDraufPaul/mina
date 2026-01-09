@@ -95,11 +95,11 @@ export default function PackagesRepository() {
         await loadPackages();
         // Then load outdated and services in parallel (less critical)
         Promise.all([loadOutdated(), loadServices()]).catch(err => {
-          console.error("Failed to load some data:", err);
+          errorHandler.showError("Failed to load some data", err);
         });
       }
     } catch (error) {
-      console.error("Failed to check Homebrew:", error);
+      errorHandler.showError("Failed to check Homebrew", error);
       setError(error instanceof Error ? error.message : "Failed to check Homebrew");
       setIsAvailable(false);
     } finally {
@@ -125,7 +125,7 @@ export default function PackagesRepository() {
       if (error instanceof Error && error.name === 'AbortError') {
         return; // Request was cancelled, ignore
       }
-      console.error("Failed to load packages:", error);
+      errorHandler.showError("Failed to load packages", error);
       if (!abortControllerRef.current?.signal.aborted) {
         setError(error instanceof Error ? error.message : "Failed to load packages");
       }
@@ -142,7 +142,7 @@ export default function PackagesRepository() {
       const outdatedList = await invoke<string[]>("list_outdated_packages");
       setOutdated(outdatedList);
     } catch (error) {
-      console.error("Failed to load outdated packages:", error);
+      errorHandler.showError("Failed to load outdated packages", error);
     } finally {
       setLoadingOutdated(false);
     }
@@ -154,7 +154,7 @@ export default function PackagesRepository() {
       const serviceList = await invoke<HomebrewService[]>("list_services");
       setServices(serviceList);
     } catch (error) {
-      console.error("Failed to load services:", error);
+      errorHandler.showError("Failed to load services", error);
     } finally {
       setLoadingServices(false);
     }

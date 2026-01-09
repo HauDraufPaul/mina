@@ -24,7 +24,9 @@ export default function RateLimitMonitor() {
       loadBuckets();
       // Refill buckets periodically
       buckets.forEach((bucket) => {
-        invoke("refill_rate_limit_bucket", { name: bucket.name }).catch(console.error);
+        invoke("refill_rate_limit_bucket", { name: bucket.name }).catch((err) => {
+          errorHandler.showError(`Failed to refill bucket ${bucket.name}`, err);
+        });
       });
     }, 5000);
     return () => clearInterval(interval);

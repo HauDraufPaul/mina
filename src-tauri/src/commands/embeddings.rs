@@ -1,17 +1,22 @@
 use crate::services::embeddings::EmbeddingService;
-use std::sync::Mutex;
-use tauri::State;
-
-// Global embedding service instance (will be managed by Tauri state)
-// For now, we'll create a new instance each time, but this should be managed state
-// TODO: Move to managed state once API key management is implemented
+use crate::services::api_key_manager::APIKeyManager;
+use std::sync::{Arc, Mutex};
+use tauri::{State, AppHandle};
 
 #[tauri::command]
-pub async fn generate_embedding(text: String, dimension: Option<usize>) -> Result<Vec<f32>, String> {
+pub async fn generate_embedding(
+    text: String,
+    _dimension: Option<usize>,
+    app: AppHandle,
+) -> Result<Vec<f32>, String> {
     let mut service = EmbeddingService::new();
     
-    // TODO: Get API key from API key manager when Phase 2.1 is implemented
-    // For now, service will use local fallback
+    // Get OpenAI API key from API key manager if available
+    if let Some(api_key_manager) = app.try_state::<Arc<APIKeyManager>>() {
+        if let Ok(Some(openai_key)) = api_key_manager.get_key_optional("openai") {
+            service.set_openai_key(openai_key);
+        }
+    }
     
     let embedding = service.generate(&text).await
         .map_err(|e| format!("Failed to generate embedding: {}", e))?;

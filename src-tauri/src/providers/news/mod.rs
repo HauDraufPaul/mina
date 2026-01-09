@@ -6,6 +6,9 @@ pub mod rss_provider;
 pub mod bloomberg_rss;
 pub mod reuters_rss;
 pub mod other_rss;
+pub mod newsapi;
+pub mod alpha_vantage;
+pub mod finnhub;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewsItem {
@@ -29,4 +32,7 @@ pub use rss_provider::RSSProvider;
 pub use bloomberg_rss::BloombergRSS;
 pub use reuters_rss::ReutersRSS;
 pub use other_rss::OtherFinancialRSS;
+pub use newsapi::NewsAPIProvider;
+pub use alpha_vantage::AlphaVantageNewsProvider;
+pub use finnhub::FinnhubNewsProvider;
 

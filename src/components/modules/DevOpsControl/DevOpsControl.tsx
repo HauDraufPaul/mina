@@ -99,7 +99,7 @@ export default function DevOpsControl() {
       
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load data:", error);
+      errorHandler.showError("Failed to load data", error);
       setLoading(false);
     }
   };

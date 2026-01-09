@@ -21,12 +21,15 @@ pub struct VectorStore {
 impl VectorStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = VectorStore { conn };
-        store.init_schema().unwrap();
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: VectorStore schema initialization failed: {}", e);
+        }
         store
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS vector_collections (
@@ -65,7 +68,8 @@ impl VectorStore {
     }
 
     pub fn create_collection(&self, name: &str, dimension: i32) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -78,7 +82,8 @@ impl VectorStore {
     }
 
     pub fn list_collections(&self) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare("SELECT name FROM vector_collections")?;
 
         let names = stmt.query_map([], |row| Ok(row.get::<_, String>(0)?))?;
@@ -91,7 +96,8 @@ impl VectorStore {
     }
 
     pub fn insert_document(&self, doc: &VectorDocument) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         // Serialize embedding to JSON for storage
         let embedding_json = serde_json::to_string(&doc.embedding)?;
@@ -122,7 +128,8 @@ impl VectorStore {
         limit: i32,
         min_similarity: f32,
     ) -> Result<Vec<(VectorDocument, f32)>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         // Note: This is a simplified cosine similarity search
         // In production, you'd use a proper vector database like Qdrant
@@ -161,14 +168,16 @@ impl VectorStore {
         }
 
         // Sort by similarity descending
-        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(limit as usize);
 
         Ok(results)
     }
 
     pub fn delete_expired(&self) -> Result<usize> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         let count = conn.execute(
@@ -180,7 +189,8 @@ impl VectorStore {
     }
 
     pub fn get_collection_stats(&self, collection: &str) -> Result<CollectionStats> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM vector_documents WHERE collection = ?1",

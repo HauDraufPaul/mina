@@ -24,7 +24,12 @@ impl MarketDataStreamer {
     }
 
     pub fn subscribe(&self, tickers: Vec<String>) {
-        let mut subs = self.subscribers.lock().unwrap();
+        let mut subs = self.subscribers.lock()
+            .map_err(|e| {
+                eprintln!("Failed to lock subscribers: {}", e);
+                e
+            })
+            .unwrap_or_else(|_| panic!("Subscribers mutex poisoned"));
         for ticker in tickers {
             if !subs.contains(&ticker) {
                 subs.push(ticker);
@@ -33,12 +38,22 @@ impl MarketDataStreamer {
     }
 
     pub fn unsubscribe(&self, tickers: Vec<String>) {
-        let mut subs = self.subscribers.lock().unwrap();
+        let mut subs = self.subscribers.lock()
+            .map_err(|e| {
+                eprintln!("Failed to lock subscribers: {}", e);
+                e
+            })
+            .unwrap_or_else(|_| panic!("Subscribers mutex poisoned"));
         subs.retain(|t| !tickers.contains(t));
     }
 
     pub fn update_price(&self, price: MarketPrice) {
-        let mut pending = self.pending_updates.lock().unwrap();
+        let mut pending = self.pending_updates.lock()
+            .map_err(|e| {
+                eprintln!("Failed to lock pending_updates: {}", e);
+                e
+            })
+            .unwrap_or_else(|_| panic!("Pending updates mutex poisoned"));
         pending.insert(price.ticker.clone(), price);
     }
 
@@ -55,8 +70,18 @@ impl MarketDataStreamer {
 
                 // Get pending updates
                 let updates: Vec<MarketPrice> = {
-                    let mut pending = pending_updates.lock().unwrap();
-                    let subs = subscribers.lock().unwrap();
+                    let mut pending = pending_updates.lock()
+                        .map_err(|e| {
+                            eprintln!("Failed to lock pending_updates: {}", e);
+                            e
+                        })
+                        .unwrap_or_else(|_| panic!("Pending updates mutex poisoned"));
+                    let subs = subscribers.lock()
+                        .map_err(|e| {
+                            eprintln!("Failed to lock subscribers: {}", e);
+                            e
+                        })
+                        .unwrap_or_else(|_| panic!("Subscribers mutex poisoned"));
                     
                     // Only send updates for subscribed tickers
                     let filtered: Vec<MarketPrice> = pending
@@ -97,10 +122,10 @@ impl MarketDataStreamer {
         let subscribers = self.subscribers.clone();
         let pending_updates = self.pending_updates.clone();
 
+        let api_key_manager = app.try_state::<std::sync::Arc<crate::services::api_key_manager::APIKeyManager>>();
         tauri::async_runtime::spawn(async move {
             let mut interval = interval(Duration::from_secs(5)); // Fetch every 5 seconds
-            // TODO: Get API key manager from state when available
-            let manager = MarketDataManager::new(None);
+            let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
             let last_fetch_time = Arc::new(Mutex::new(std::collections::HashMap::<String, i64>::new()));
 
             loop {
@@ -108,7 +133,12 @@ impl MarketDataStreamer {
 
                 // Get subscribed tickers
                 let tickers_to_fetch: Vec<String> = {
-                    let subs = subscribers.lock().unwrap();
+                    let subs = subscribers.lock()
+                        .map_err(|e| {
+                            eprintln!("Failed to lock subscribers: {}", e);
+                            e
+                        })
+                        .unwrap_or_else(|_| panic!("Subscribers mutex poisoned"));
                     subs.clone()
                 };
 
@@ -116,7 +146,12 @@ impl MarketDataStreamer {
                     // Rate limit: only fetch if last fetch was > 1 second ago
                     let now = chrono::Utc::now().timestamp();
                     let tickers_to_fetch_now: Vec<String> = {
-                        let lft = last_fetch_time.lock().unwrap();
+                        let lft = last_fetch_time.lock()
+                            .map_err(|e| {
+                                eprintln!("Failed to lock last_fetch_time: {}", e);
+                                e
+                            })
+                            .unwrap_or_else(|_| panic!("Last fetch time mutex poisoned"));
                         tickers_to_fetch
                             .iter()
                             .filter(|ticker| {
@@ -132,7 +167,12 @@ impl MarketDataStreamer {
                         if let Ok(prices) = manager.get_prices(&tickers_to_fetch_now, None).await {
                             // Update last fetch time
                             {
-                                let mut lft = last_fetch_time.lock().unwrap();
+                                let mut lft = last_fetch_time.lock()
+                                    .map_err(|e| {
+                                        eprintln!("Failed to lock last_fetch_time: {}", e);
+                                        e
+                                    })
+                                    .unwrap_or_else(|_| panic!("Last fetch time mutex poisoned"));
                                 for ticker in &tickers_to_fetch_now {
                                     lft.insert(ticker.clone(), now);
                                 }
@@ -140,7 +180,12 @@ impl MarketDataStreamer {
 
                             // Store in database and push to streamer
                             let conn = {
-                                let db_guard = db.lock().unwrap();
+                                let db_guard = db.lock()
+                                    .map_err(|e| {
+                                        eprintln!("Failed to lock database: {}", e);
+                                        e
+                                    })
+                                    .unwrap_or_else(|_| panic!("Database mutex poisoned"));
                                 db_guard.conn.clone()
                             };
                             let store = MarketDataStore::new(conn);
@@ -162,7 +207,12 @@ impl MarketDataStreamer {
 
                                 // Push to streamer for batching
                                 {
-                                    let mut pending = pending_updates.lock().unwrap();
+                                    let mut pending = pending_updates.lock()
+                                        .map_err(|e| {
+                                            eprintln!("Failed to lock pending_updates: {}", e);
+                                            e
+                                        })
+                                        .unwrap_or_else(|_| panic!("Pending updates mutex poisoned"));
                                     pending.insert(price.ticker.clone(), price);
                                 }
                             }
@@ -180,7 +230,12 @@ impl Clone for MarketDataStreamer {
             ws_server: self.ws_server.clone(),
             pending_updates: Arc::new(Mutex::new(HashMap::new())),
             subscribers: Arc::new(Mutex::new({
-                let subs = self.subscribers.lock().unwrap();
+                let subs = self.subscribers.lock()
+                    .map_err(|e| {
+                        eprintln!("Failed to lock subscribers: {}", e);
+                        e
+                    })
+                    .unwrap_or_else(|_| panic!("Subscribers mutex poisoned"));
                 subs.clone()
             })),
         }

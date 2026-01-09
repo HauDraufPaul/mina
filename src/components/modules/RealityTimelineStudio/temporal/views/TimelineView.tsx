@@ -60,7 +60,7 @@ export default function TimelineView() {
       const data = await invoke<Array<{ id: number; name: string; created_at: number }>>("list_portfolios");
       setPortfolios(data);
     } catch (err) {
-      console.error("Failed to load portfolios:", err);
+      // Silently fail - portfolios are optional
     }
   };
 
@@ -96,26 +96,34 @@ export default function TimelineView() {
       })
     );
 
+    let tlInstance: typeof timeline = null;
     if (!timeline) {
-      const tl = new Timeline(container, items, groups, {
+      tlInstance = new Timeline(container, items, groups, {
         stack: true,
         showCurrentTime: true,
         zoomMin: 1000 * 60 * 60 * 6,
         zoomMax: 1000 * 60 * 60 * 24 * 30,
         maxHeight: 520,
-      } as any);
-      tl.on("select", (props: any) => {
+      } as Record<string, unknown>);
+      tlInstance.on("select", (props: { items?: string[] }) => {
         const id = props?.items?.[0];
         if (id) {
           const evt = events.find((x) => x.id === id);
           if (evt) openEvent(evt);
         }
       });
-      setTimeline(tl);
+      setTimeline(tlInstance);
     } else {
       timeline.setGroups(groups);
       timeline.setItems(items);
+      tlInstance = timeline;
     }
+
+    return () => {
+      if (tlInstance) {
+        tlInstance.destroy();
+      }
+    };
   }, [events, loading]);
 
   const rebuild = async () => {

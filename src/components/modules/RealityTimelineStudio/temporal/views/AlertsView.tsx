@@ -12,9 +12,9 @@ interface AlertRule {
   name: string;
   enabled: boolean;
   watchlist_id?: number | null;
-  rule_json: any;
+  rule_json: Record<string, unknown>;
   schedule?: string | null;
-  escalation_config?: any;
+  escalation_config?: Record<string, unknown>;
   created_at: number;
 }
 
@@ -33,7 +33,7 @@ interface Alert {
   rule_id: number;
   fired_at: number;
   event_id?: number | null;
-  payload_json: any;
+  payload_json: Record<string, unknown>;
   status: string;
   snoozed_until?: number | null;
 }
@@ -53,6 +53,9 @@ export default function AlertsView() {
   const [escalationConfig, setEscalationConfig] = useState<string>("");
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [escalationHistory, setEscalationHistory] = useState<AlertEscalation[]>([]);
+  const [showEscalateModal, setShowEscalateModal] = useState(false);
+  const [escalateLevel, setEscalateLevel] = useState(1);
+  const [escalateChannel, setEscalateChannel] = useState("email");
   const errorHandler = useErrorHandler();
 
   const load = async () => {
@@ -84,7 +87,7 @@ export default function AlertsView() {
   const createRule = async () => {
     const name = newRuleName.trim();
     if (!name) return;
-    let rule_json: any;
+    let rule_json: Record<string, unknown>;
     try {
       rule_json = JSON.parse(newRuleJsonText);
     } catch (e) {
@@ -256,6 +259,16 @@ export default function AlertsView() {
                       <AlertTriangle className="w-4 h-4 mr-2" />
                       Escalations
                     </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedAlert(a);
+                        setShowEscalateModal(true);
+                      }}
+                    >
+                      <Bell className="w-4 h-4 mr-2" />
+                      Escalate
+                    </Button>
                     <Button variant="secondary" onClick={() => labelAlert(a.id, 1)}>
                       Helpful
                     </Button>
@@ -338,6 +351,56 @@ export default function AlertsView() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={showEscalateModal} onClose={() => setShowEscalateModal(false)} title="Manually Escalate Alert">
+        {selectedAlert && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-400">
+              Alert #{selectedAlert.id} • Rule {selectedAlert.rule_id}
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Escalation Level</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={escalateLevel}
+                onChange={(e) => setEscalateLevel(parseInt(e.target.value) || 1)}
+                className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Channel</label>
+              <select
+                value={escalateChannel}
+                onChange={(e) => setEscalateChannel(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              >
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+                <option value="webhook">Webhook</option>
+                <option value="push">Push Notification</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowEscalateModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  if (selectedAlert) {
+                    await manualEscalate(selectedAlert.id, escalateLevel, escalateChannel);
+                    setShowEscalateModal(false);
+                  }
+                }}
+              >
+                Escalate
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

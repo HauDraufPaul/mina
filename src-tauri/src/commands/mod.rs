@@ -27,6 +27,9 @@ pub mod economic_calendar;
 pub mod messaging;
 pub mod api_keys;
 pub mod grid_layouts;
+pub mod global_search;
+pub mod notifications;
+pub mod data_export;
 pub mod price_alerts;
 
 // Re-exports are not needed - commands are registered directly in lib.rs

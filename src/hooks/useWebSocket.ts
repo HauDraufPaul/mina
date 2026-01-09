@@ -4,7 +4,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 
 export interface WsMessage {
   type: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface UseWebSocketOptions {

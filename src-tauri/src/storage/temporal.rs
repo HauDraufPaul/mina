@@ -675,8 +675,20 @@ impl TemporalStore {
     }
 
     fn check_alert_escalation(&self, alert: &Alert, rule: &AlertRule) -> Result<()> {
-        // Escalation is now handled asynchronously by AlertEscalationChecker
-        // This method is kept for compatibility but does nothing
+        // Spawn async task to check and escalate alert
+        // We clone what we need since we're in a sync context
+        let store_clone = TemporalStore::new(self.conn.clone());
+        let alert_clone = alert.clone();
+        let rule_clone = rule.clone();
+        
+        // Spawn async task for escalation (no AppHandle available here, so desktop notifications won't work)
+        tauri::async_runtime::spawn(async move {
+            use crate::services::alert_escalator::AlertEscalator;
+            if let Err(e) = AlertEscalator::check_and_escalate(&store_clone, &alert_clone, &rule_clone, None).await {
+                eprintln!("Failed to escalate alert {}: {}", alert_clone.id, e);
+            }
+        });
+        
         Ok(())
     }
 

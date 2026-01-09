@@ -323,8 +323,12 @@ impl PortfolioAnalyzer {
             return Ok(None);
         }
 
-        let start_value = snapshots.last().unwrap().total_value;
-        let end_value = snapshots.first().unwrap().total_value;
+        let start_value = snapshots.last()
+            .ok_or_else(|| anyhow::anyhow!("No last snapshot available"))?
+            .total_value;
+        let end_value = snapshots.first()
+            .ok_or_else(|| anyhow::anyhow!("No first snapshot available"))?
+            .total_value;
 
         if start_value > 0.0 {
             Ok(Some(((end_value - start_value) / start_value) * 100.0))

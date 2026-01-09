@@ -1,5 +1,9 @@
-use crate::providers::news::{BloombergRSS, NewsItem, NewsProvider, OtherFinancialRSS, ReutersRSS};
+use crate::providers::news::{
+    BloombergRSS, NewsItem, NewsProvider, OtherFinancialRSS, ReutersRSS,
+    NewsAPIProvider, AlphaVantageNewsProvider, FinnhubNewsProvider,
+};
 use crate::services::{TickerMatcher, SentimentAnalyzer};
+use crate::services::api_key_manager::APIKeyManager;
 use crate::storage::{StockNewsItem, StockNewsStore};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
@@ -14,15 +18,27 @@ pub struct NewsAggregator {
 
 impl NewsAggregator {
     pub fn new(store: Arc<Mutex<StockNewsStore>>) -> Result<Self> {
-        let providers: Vec<Box<dyn NewsProvider>> = vec![
+        Self::new_with_api_keys(store, None)
+    }
+
+    pub fn new_with_api_keys(store: Arc<Mutex<StockNewsStore>>, api_key_manager: Option<&APIKeyManager>) -> Result<Self> {
+        let mut providers: Vec<Box<dyn NewsProvider>> = vec![
             Box::new(BloombergRSS::new()),
             Box::new(ReutersRSS::new()),
             Box::new(OtherFinancialRSS::new()),
         ];
 
+        // Add API-based providers if API keys are available
+        if let Some(key_mgr) = api_key_manager {
+            providers.push(Box::new(NewsAPIProvider::new(Some(key_mgr))));
+            providers.push(Box::new(AlphaVantageNewsProvider::new(Some(key_mgr))));
+            providers.push(Box::new(FinnhubNewsProvider::new(Some(key_mgr))));
+        }
+
         // Initialize ticker matcher
         let ticker_matcher = {
-            let store_guard = store.lock().unwrap();
+            let store_guard = store.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to lock store: {}", e))?;
             TickerMatcher::new(&store_guard)?
         };
 
@@ -90,7 +106,8 @@ impl NewsAggregator {
         // Match tickers in title and content
         let text = format!("{} {}", item.title, item.content);
         let ticker_matches = {
-            let matcher = self.ticker_matcher.lock().unwrap();
+            let matcher = self.ticker_matcher.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to lock ticker_matcher: {}", e))?;
             matcher.match_tickers(&text)
         };
 
@@ -100,7 +117,8 @@ impl NewsAggregator {
 
         // Save to database
         let news_id = {
-            let store = self.store.lock().unwrap();
+            let store = self.store.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to lock store: {}", e))?;
             store.create_news_item_with_sentiment(
                 &item.title,
                 &item.content,
@@ -115,7 +133,8 @@ impl NewsAggregator {
         // Associate tickers
         let mut associated_tickers = Vec::new();
         {
-            let store = self.store.lock().unwrap();
+            let store = self.store.lock()
+                .map_err(|e| anyhow::anyhow!("Failed to lock store: {}", e))?;
             for (ticker, confidence) in &ticker_matches {
                 store.associate_ticker(news_id, ticker, *confidence)?;
                 associated_tickers.push(ticker.clone());
@@ -177,8 +196,16 @@ impl NewsAggregator {
                 eprintln!("NewsAggregator: Polling RSS feeds...");
 
                 // Fetch news since last fetch
+                // Note: API key manager would need to be passed here if available
+                // For now, use None - providers will skip if no key
                 let aggregator = {
-                    let store_guard = store.lock().unwrap();
+                    match store.lock() {
+                        Ok(_guard) => {},
+                        Err(e) => {
+                            eprintln!("Failed to lock store: {}", e);
+                            continue;
+                        }
+                    }
                     match NewsAggregator::new(store.clone()) {
                         Ok(agg) => agg,
                         Err(e) => {
@@ -232,7 +259,13 @@ impl NewsAggregator {
 
     /// Match tickers in text (convenience method)
     pub fn match_tickers(&self, text: &str) -> Vec<(String, f64)> {
-        let matcher = self.ticker_matcher.lock().unwrap();
+        let matcher = match self.ticker_matcher.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock ticker_matcher: {}", e);
+                return Vec::new();
+            }
+        };
         matcher.match_tickers(text)
     }
 }

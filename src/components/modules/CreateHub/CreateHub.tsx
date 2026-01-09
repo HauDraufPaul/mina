@@ -39,7 +39,7 @@ export default function CreateHub() {
       }
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load projects:", error);
+      errorHandler.showError("Failed to load projects", error);
       setLoading(false);
     }
   };
@@ -108,7 +108,7 @@ export default function CreateHub() {
         setProjectType(project.project_type);
       }
     } catch (error) {
-      console.error("Failed to load project:", error);
+      errorHandler.showError("Failed to load project", error);
     }
   };
 

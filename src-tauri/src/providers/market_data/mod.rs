@@ -50,31 +50,25 @@ pub struct MarketDataManager {
 }
 
 impl MarketDataManager {
-    pub fn new(_api_key_manager: Option<&crate::services::api_key_manager::APIKeyManager>) -> Self {
+    pub fn new(api_key_manager: Option<&crate::services::api_key_manager::APIKeyManager>) -> Self {
         let mut providers: Vec<Box<dyn MarketDataProvider>> = Vec::new();
         
         // Always add Yahoo Finance (no key required)
         providers.push(Box::new(YahooFinanceProvider::new()));
         
         // Add Alpha Vantage if key available
-        // TODO: Integrate with API key manager when available
-        // if let Some(key_mgr) = api_key_manager {
-        //     if let Ok(key) = key_mgr.get_key_optional("alpha_vantage") {
-        //         if let Some(api_key) = key {
-        //             providers.push(Box::new(AlphaVantageProvider::new(api_key)));
-        //         }
-        //     }
-        // }
+        if let Some(key_mgr) = api_key_manager {
+            if let Ok(Some(api_key)) = key_mgr.get_key_optional("alpha_vantage") {
+                providers.push(Box::new(AlphaVantageProvider::new(api_key)));
+            }
+        }
         
         // Add Polygon if key available
-        // TODO: Integrate with API key manager when available
-        // if let Some(key_mgr) = api_key_manager {
-        //     if let Ok(key) = key_mgr.get_key_optional("polygon") {
-        //         if let Some(api_key) = key {
-        //             providers.push(Box::new(PolygonProvider::new(api_key)));
-        //         }
-        //     }
-        // }
+        if let Some(key_mgr) = api_key_manager {
+            if let Ok(Some(api_key)) = key_mgr.get_key_optional("polygon") {
+                providers.push(Box::new(PolygonProvider::new(api_key)));
+            }
+        }
         
         MarketDataManager {
             providers,

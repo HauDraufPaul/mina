@@ -4,7 +4,7 @@ export interface Panel {
   component: string; // Module/component identifier
   position: { row: number; col: number };
   size: { width: number; height: number };
-  config: Record<string, any>; // Panel-specific config
+  config: Record<string, unknown>; // Panel-specific config
   minimized: boolean;
   maximized: boolean;
   title?: string;
@@ -23,6 +23,6 @@ export interface GridLayout {
 }
 
 export interface PanelConfig {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 

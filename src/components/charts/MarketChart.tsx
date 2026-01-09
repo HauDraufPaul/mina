@@ -3,6 +3,7 @@ import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, Time } 
 import { invoke } from "@tauri-apps/api/core";
 import { Calendar, Download } from "lucide-react";
 import Button from "../ui/Button";
+import { useErrorHandler } from "@/utils/errorHandler";
 import {
   calculateSMA,
   calculateEMA,
@@ -55,6 +56,7 @@ export default function MarketChart({
   showDrawingTools: _showDrawingTools,
   onExport,
 }: MarketChartProps) {
+  const errorHandler = useErrorHandler();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -200,7 +202,7 @@ export default function MarketChart({
             for (const indicator of indicators) {
               if (!indicator.visible) continue;
               
-              let indicatorData: any[] = [];
+              let indicatorData: Array<{ time: number; value: number } | { time: number; upper: number; middle: number; lower: number }> = [];
               let seriesKey = `${indicator.type}_${indicator.period || 20}`;
               
               switch (indicator.type) {
@@ -320,7 +322,7 @@ export default function MarketChart({
                   }
                 }
               } catch (err) {
-                console.error(`Failed to load comparison data for ${compTicker}:`, err);
+                errorHandler.showError(`Failed to load comparison data for ${compTicker}`, err);
               }
             }
           }
@@ -359,7 +361,7 @@ export default function MarketChart({
           }
         }
       } catch (err) {
-        console.error("Failed to load chart data:", err);
+        errorHandler.showError("Failed to load chart data", err);
         setError(err instanceof Error ? err.message : "Failed to load chart data");
       } finally {
         setLoading(false);
@@ -384,7 +386,7 @@ export default function MarketChart({
         link.click();
       }
     } catch (err) {
-      console.error("Failed to export chart:", err);
+      errorHandler.showError("Failed to export chart", err);
     }
     
     if (onExport) {

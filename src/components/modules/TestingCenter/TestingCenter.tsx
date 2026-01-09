@@ -73,7 +73,7 @@ export default function TestingCenter() {
       setSuiteResults({ ...suiteResults, [suiteId]: results || [] });
       setSuiteStats({ ...suiteStats, [suiteId]: stats || { total: 0, passed: 0, failed: 0, duration: 0 } });
     } catch (error) {
-      console.error("Failed to load suite data:", error);
+      errorHandler.showError("Failed to load suite data", error);
       setSuiteResults({ ...suiteResults, [suiteId]: [] });
       setSuiteStats({ ...suiteStats, [suiteId]: { total: 0, passed: 0, failed: 0, duration: 0 } });
     }

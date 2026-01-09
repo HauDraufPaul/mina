@@ -18,12 +18,15 @@ pub struct MigrationTracker {
 impl MigrationTracker {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let tracker = MigrationTracker { conn };
-        tracker.init_schema().unwrap();
+        if let Err(e) = tracker.init_schema() {
+            eprintln!("WARNING: MigrationTracker schema initialization failed: {}", e);
+        }
         tracker
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS migration_history (
@@ -39,7 +42,8 @@ impl MigrationTracker {
     }
 
     pub fn list_migrations(&self) -> Result<Vec<MigrationRecord>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT version, name, applied_at, status FROM migration_history ORDER BY version"
         )?;
@@ -61,7 +65,8 @@ impl MigrationTracker {
     }
 
     pub fn record_migration(&self, version: i32, name: &str, status: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -74,7 +79,8 @@ impl MigrationTracker {
     }
 
     pub fn get_latest_version(&self) -> Result<i32> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         
         let version: Option<i32> = conn
             .query_row(

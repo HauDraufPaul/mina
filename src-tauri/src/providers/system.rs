@@ -19,37 +19,79 @@ impl SystemProvider {
     }
 
     pub fn refresh(&self) {
-        let mut system = self.system.lock().unwrap();
+        let mut system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return;
+            }
+        };
         system.refresh_all();
     }
 
     pub fn get_cpu_usage(&self) -> f64 {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0.0;
+            }
+        };
         system.global_cpu_info().cpu_usage() as f64
     }
 
     pub fn get_cpu_count(&self) -> usize {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0;
+            }
+        };
         system.cpus().len()
     }
 
     pub fn get_cpu_frequency(&self) -> u64 {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0;
+            }
+        };
         system.global_cpu_info().frequency()
     }
 
     pub fn get_memory_total(&self) -> u64 {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0;
+            }
+        };
         system.total_memory()
     }
 
     pub fn get_memory_used(&self) -> u64 {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0;
+            }
+        };
         system.used_memory()
     }
 
     pub fn get_memory_free(&self) -> u64 {
-        let system = self.system.lock().unwrap();
+        let system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock system: {}", e);
+                return 0;
+            }
+        };
         system.free_memory()
     }
 
@@ -76,7 +118,13 @@ impl SystemProvider {
             total_tx += network.transmitted();
         }
 
-        let mut last_check = self.last_network_check.lock().unwrap();
+        let mut last_check = match self.last_network_check.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock last_network_check: {}", e);
+                return (0.0, 0.0);
+            }
+        };
         let now = Instant::now();
         let elapsed = now.duration_since(last_check.0);
         

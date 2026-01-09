@@ -294,6 +294,8 @@ pub fn run() {
             let api_key_manager = Arc::new(services::api_key_manager::APIKeyManager::new(
                 api_key_store,
             ));
+            // Manage API key manager in Tauri state for use in commands
+            app.manage(api_key_manager.clone());
             let rate_limiter_for_alerts = Arc::new(Mutex::new((*rate_limiter_arc).clone()));
             let db_for_price_alerts = Arc::new(Mutex::new(Database {
                 conn: db_conn_for_price_alerts,
@@ -524,6 +526,11 @@ pub fn run() {
             commands::grid_layouts::get_grid_layout,
             commands::grid_layouts::list_grid_layouts,
             commands::grid_layouts::delete_grid_layout,
+            commands::global_search::global_search,
+            commands::notifications::send_notification,
+            commands::notifications::send_alert_notification,
+            commands::notifications::send_price_alert_notification,
+            commands::data_export::export_data,
             commands::grid_layouts::list_grid_layout_templates,
             commands::price_alerts::create_price_alert,
             commands::price_alerts::list_price_alerts,

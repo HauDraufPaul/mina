@@ -35,7 +35,7 @@ export default function VectorStoreManager() {
       setCollections(cols);
       setLoading(false);
     } catch (error) {
-      console.error("Failed to load collections:", error);
+      errorHandler.showError("Failed to load collections", error);
       setLoading(false);
     }
   };
@@ -47,13 +47,33 @@ export default function VectorStoreManager() {
       });
       setStats(collectionStats);
     } catch (error) {
-      console.error("Failed to load stats:", error);
+      errorHandler.showError("Failed to load stats", error);
     }
   };
 
   const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) {
       errorHandler.showError("Collection name cannot be empty");
+      return;
+    }
+
+    if (newCollectionName.trim().length < 3) {
+      errorHandler.showError("Collection name must be at least 3 characters");
+      return;
+    }
+
+    if (newCollectionName.trim().length > 50) {
+      errorHandler.showError("Collection name must be less than 50 characters");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(newCollectionName.trim())) {
+      errorHandler.showError("Collection name can only contain letters, numbers, underscores, and hyphens");
+      return;
+    }
+
+    if (newCollectionDim < 1 || newCollectionDim > 4096) {
+      errorHandler.showError("Dimension must be between 1 and 4096");
       return;
     }
 

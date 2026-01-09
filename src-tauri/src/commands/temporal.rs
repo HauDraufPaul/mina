@@ -388,8 +388,12 @@ pub async fn escalate_alert(
 ) -> Result<i64, String> {
     use crate::services::alert_escalator::AlertEscalator;
     
-    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-    let store = TemporalStore::new(db_guard.conn.clone());
+    // Clone connection before dropping guard to avoid holding across await
+    let conn = {
+        let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+        db_guard.conn.clone()
+    };
+    let store = TemporalStore::new(conn);
     
     // Get alert and rule
     let alerts = store.list_alerts(1000, None, None)
@@ -417,13 +421,18 @@ pub async fn escalate_alert(
                 .cloned()
         });
     
+    // Clone data needed for async call to avoid holding references across await
+    let alert_clone = alert.clone();
+    let channel_clone = channel.clone();
+    let level_config_value = level_config.unwrap_or(serde_json::json!({}));
+    
     // Send escalation
     if let Err(e) = AlertEscalator::send_escalation(
         &store,
         escalation_id,
-        &channel,
-        &alert,
-        &level_config.unwrap_or(serde_json::json!({})),
+        &channel_clone,
+        &alert_clone,
+        &level_config_value,
         Some(app),
     ).await {
         eprintln!("Failed to send escalation: {}", e);

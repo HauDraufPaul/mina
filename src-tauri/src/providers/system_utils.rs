@@ -133,7 +133,14 @@ impl SystemUtilsProvider {
                             if let Ok(boot_time) = sec_str[..sec_end].trim().parse::<i64>() {
                                 let now = std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
+                                    .map_err(|e| {
+                                        eprintln!("Failed to get system time: {}", e);
+                                        return 0;
+                                    })
+                                    .unwrap_or_else(|_| {
+                                        eprintln!("System time error");
+                                        return std::time::Duration::from_secs(0);
+                                    })
                                     .as_secs() as i64;
                                 (now - boot_time).max(0) as u64
                             } else {

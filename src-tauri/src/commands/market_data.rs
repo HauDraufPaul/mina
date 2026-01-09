@@ -4,8 +4,9 @@ use crate::storage::Database;
 use crate::services::market_data_stream::MarketDataStreamer;
 use crate::services::market_cache::MarketDataCache;
 use crate::services::rate_limiter::RateLimiter;
+use crate::services::api_key_manager::APIKeyManager;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,7 +24,6 @@ pub async fn get_market_price(
     ticker: String,
     db: State<'_, Mutex<Database>>,
     cache: State<'_, Mutex<MarketDataCache>>,
-    rate_limiter: State<'_, Mutex<RateLimiter>>,
 ) -> Result<Option<MarketPrice>, String> {
     // Try in-memory cache first
     if let Ok(cache_guard) = cache.lock() {
@@ -51,11 +51,10 @@ pub async fn get_market_price(
     }
 
     // Fetch from provider
-    // TODO: Get API key manager from state when available
-    let manager = MarketDataManager::new(None);
-    let rate_limiter_guard = rate_limiter.lock().ok();
-    let rate_limiter_ref = rate_limiter_guard.as_deref();
-    match manager.get_price(&ticker, rate_limiter_ref).await {
+    let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
+    let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+    // Rate limiter is optional - pass None to avoid holding lock across await
+    match manager.get_price(&ticker, None).await {
         Ok(price_data) => {
             let price = MarketPrice {
                 ticker: price_data.ticker.clone(),
@@ -93,7 +92,7 @@ pub async fn get_market_prices(
     db: State<'_, Mutex<Database>>,
     streamer: State<'_, Mutex<MarketDataStreamer>>,
     cache: State<'_, Mutex<MarketDataCache>>,
-    rate_limiter: State<'_, Mutex<RateLimiter>>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<MarketPrice>, String> {
     let mut result_map: std::collections::HashMap<String, MarketPrice> = std::collections::HashMap::new();
     let mut to_fetch: Vec<String> = Vec::new();
@@ -147,11 +146,10 @@ pub async fn get_market_prices(
 
     // Fetch missing/expired prices
     if !to_fetch.is_empty() {
-        // TODO: Get API key manager from state when available
-        let manager = MarketDataManager::new(None);
-        let rate_limiter_guard = rate_limiter.lock().ok();
-        let rate_limiter_ref = rate_limiter_guard.as_deref();
-        if let Ok(prices) = manager.get_prices(&to_fetch, rate_limiter_ref).await {
+        let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
+        let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+        // Rate limiter is optional - pass None to avoid holding lock across await
+        if let Ok(prices) = manager.get_prices(&to_fetch, None).await {
             for price_data in prices {
                 let price = MarketPrice {
                     ticker: price_data.ticker.clone(),
@@ -205,7 +203,7 @@ pub async fn get_chart_data(
     interval: String,
     db: State<'_, Mutex<Database>>,
     cache: State<'_, Mutex<MarketDataCache>>,
-    rate_limiter: State<'_, Mutex<RateLimiter>>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<ChartDataPoint>, String> {
     use crate::providers::market_data::OHLCVData;
     
@@ -267,11 +265,10 @@ pub async fn get_chart_data(
     }
 
     // Fetch from provider
-    // TODO: Get API key manager from state when available
-    let manager = MarketDataManager::new(None);
-    let rate_limiter_guard = rate_limiter.lock().ok();
-    let rate_limiter_ref = rate_limiter_guard.as_deref();
-    match manager.get_history(&ticker, from_ts, to_ts, &interval, rate_limiter_ref).await {
+    let api_key_manager = app.try_state::<Arc<APIKeyManager>>();
+    let manager = MarketDataManager::new(api_key_manager.map(|m| m.as_ref()));
+    // Rate limiter is optional - pass None to avoid holding lock across await
+    match manager.get_history(&ticker, from_ts, to_ts, &interval, None).await {
         Ok(ohlcv_data) => {
             // Cache in memory
             if let Ok(cache_guard) = cache.lock() {

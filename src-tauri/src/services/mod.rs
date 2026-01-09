@@ -13,8 +13,13 @@ pub mod api_key_manager;
 pub mod market_cache;
 pub mod rate_limiter;
 pub mod price_alert_checker;
+pub mod global_search;
+pub mod desktop_notifications;
+pub mod data_export;
 
 pub use ticker_matcher::TickerMatcher;
+pub use desktop_notifications::{DesktopNotificationService, NotificationOptions};
+pub use global_search::{GlobalSearchService, SearchResult, SearchSource};
 pub use news_aggregator::NewsAggregator;
 pub use portfolio_analyzer::{PortfolioAnalyzer, PortfolioValue, HoldingValue, ImpactAnalysis, HoldingImpact};
 pub use economic_calendar::EconomicCalendarService;

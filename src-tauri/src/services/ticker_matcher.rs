@@ -62,8 +62,20 @@ impl TickerMatcher {
     pub fn match_tickers(&self, text: &str) -> Vec<(String, f64)> {
         let mut matches: HashMap<String, f64> = HashMap::new();
         let text_lower = text.to_lowercase();
-        let tickers = self.tickers.lock().unwrap();
-        let aliases = self.aliases.lock().unwrap();
+        let tickers = match self.tickers.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock tickers: {}", e);
+                return Vec::new();
+            }
+        };
+        let aliases = match self.aliases.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock aliases: {}", e);
+                return Vec::new();
+            }
+        };
 
         // 1. Explicit ticker mentions (e.g., "AAPL", "$MSFT", "(GOOGL)")
         for (symbol, _ticker) in tickers.iter() {
@@ -130,7 +142,8 @@ impl TickerMatcher {
 
         // Convert to vector and sort by confidence
         let mut result: Vec<(String, f64)> = matches.into_iter().collect();
-        result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        result.sort_by(|a, b| b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal));
 
         // Only return matches with confidence >= 0.6
         result.into_iter()
@@ -140,15 +153,28 @@ impl TickerMatcher {
 
     /// Get ticker info
     pub fn get_ticker(&self, symbol: &str) -> Option<StockTicker> {
-        let tickers = self.tickers.lock().unwrap();
+        let tickers = match self.tickers.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock tickers: {}", e);
+                return None;
+            }
+        };
         tickers.get(symbol).cloned()
     }
 
     /// Refresh ticker list from database
     pub fn refresh(&mut self, store: &StockNewsStore) -> Result<()> {
         let new_matcher = TickerMatcher::new(store)?;
-        *self.tickers.lock().unwrap() = new_matcher.tickers.lock().unwrap().clone();
-        *self.aliases.lock().unwrap() = new_matcher.aliases.lock().unwrap().clone();
+        let new_tickers = new_matcher.tickers.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock new_matcher.tickers: {}", e))?;
+        let new_aliases = new_matcher.aliases.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock new_matcher.aliases: {}", e))?;
+        
+        *self.tickers.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock self.tickers: {}", e))? = new_tickers.clone();
+        *self.aliases.lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock self.aliases: {}", e))? = new_aliases.clone();
         Ok(())
     }
 }

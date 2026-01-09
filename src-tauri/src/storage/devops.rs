@@ -40,12 +40,15 @@ pub struct DevOpsStore {
 impl DevOpsStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = DevOpsStore { conn };
-        store.init_schema().unwrap();
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: DevOpsStore schema initialization failed: {}", e);
+        }
         store
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS health_checks (
@@ -103,7 +106,8 @@ impl DevOpsStore {
     }
 
     pub fn create_health_check(&self, name: &str, url: &str) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -122,7 +126,8 @@ impl DevOpsStore {
         response_time: Option<i64>,
         error: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -136,7 +141,8 @@ impl DevOpsStore {
     }
 
     pub fn list_health_checks(&self) -> Result<Vec<HealthCheck>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, url, status, last_check, response_time, error FROM health_checks ORDER BY name"
         )?;
@@ -167,7 +173,8 @@ impl DevOpsStore {
         message: &str,
         source: &str,
     ) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -180,7 +187,8 @@ impl DevOpsStore {
     }
 
     pub fn list_alerts(&self, limit: i32, unresolved_only: bool) -> Result<Vec<Alert>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let query = if unresolved_only {
             "SELECT id, name, severity, message, source, created_at, resolved_at
              FROM alerts
@@ -215,7 +223,8 @@ impl DevOpsStore {
     }
 
     pub fn resolve_alert(&self, id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -227,7 +236,8 @@ impl DevOpsStore {
     }
 
     pub fn save_prometheus_metric(&self, name: &str, value: f64, labels: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -240,7 +250,8 @@ impl DevOpsStore {
     }
 
     pub fn get_prometheus_metrics(&self, name: &str, start_time: i64, end_time: i64) -> Result<Vec<PrometheusMetric>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare(
             "SELECT name, value, labels, timestamp
              FROM prometheus_metrics

@@ -193,6 +193,10 @@ export function calculateBollingerBands(
   };
 }
 
+export type IndicatorDataPoint = 
+  | { time: number; value: number }
+  | { time: number; upper: number; middle: number; lower: number };
+
 /**
  * Format indicator data for lightweight-charts
  */
@@ -200,7 +204,7 @@ export function formatIndicatorData(
   indicator: IndicatorConfig,
   priceData: PricePoint[],
   indicatorValues: number[] | MACDResult | BollingerBandsResult
-): any[] {
+): IndicatorDataPoint[] {
   switch (indicator.type) {
     case "sma":
     case "ema": {

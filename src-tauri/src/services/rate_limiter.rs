@@ -82,19 +82,31 @@ impl RateLimiter {
                 None => return, // No limit, no need to wait
             };
 
-            let requests = match self.requests.lock() {
-                Ok(r) => r,
-                Err(_) => return,
+            // Extract the wait time while holding the lock, then drop it before await
+            let wait_time = {
+                let requests = match self.requests.lock() {
+                    Ok(r) => r,
+                    Err(_) => return,
+                };
+
+                if let Some(provider_requests) = requests.get(provider) {
+                    if let Some(oldest) = provider_requests.first() {
+                        let elapsed = oldest.elapsed();
+                        if elapsed < limit.window {
+                            Some(limit.window - elapsed)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             };
 
-            if let Some(provider_requests) = requests.get(provider) {
-                if let Some(oldest) = provider_requests.first() {
-                    let elapsed = oldest.elapsed();
-                    if elapsed < limit.window {
-                        let wait_time = limit.window - elapsed;
-                        tokio::time::sleep(wait_time).await;
-                    }
-                }
+            if let Some(wait_time) = wait_time {
+                tokio::time::sleep(wait_time).await;
             } else {
                 return;
             }

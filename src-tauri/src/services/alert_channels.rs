@@ -2,19 +2,23 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use std::collections::HashMap;
 use tauri::Emitter;
+use lettre::{
+    message::{header::ContentType, Mailbox, Message, SinglePart},
+    transport::smtp::authentication::Credentials,
+    AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
+};
 
 pub struct AlertChannelSender;
 
 impl AlertChannelSender {
     /// Send alert via email
     pub async fn send_email(
-        alert_id: i64,
+        _alert_id: i64,
         alert_title: &str,
         alert_message: &str,
         recipient: &str,
         config: Option<&Value>,
     ) -> Result<()> {
-        // For now, use SMTP (can be enhanced with SendGrid, Mailgun, etc.)
         // Check if SMTP config is available
         if let Some(config) = config {
             if let (Some(smtp_host), Some(smtp_port), Some(smtp_user), Some(smtp_pass)) = (
@@ -23,16 +27,64 @@ impl AlertChannelSender {
                 config.get("smtp_user").and_then(|v| v.as_str()),
                 config.get("smtp_pass").and_then(|v| v.as_str()),
             ) {
-                // TODO: Implement SMTP sending with lettre
-                // For now, log the email
-                eprintln!("[EMAIL] To: {}, Subject: {}, Body: {}", recipient, alert_title, alert_message);
-                eprintln!("[EMAIL] SMTP: {}:{}", smtp_host, smtp_port);
+                // Parse recipient email
+                let to_email: Mailbox = recipient
+                    .parse()
+                    .context(format!("Invalid recipient email address: {}", recipient))?;
+                
+                // Parse from email (use smtp_user or default)
+                let from_email: Mailbox = smtp_user
+                    .parse()
+                    .context(format!("Invalid sender email address: {}", smtp_user))?;
+                
+                // Build email message
+                let email = Message::builder()
+                    .from(from_email)
+                    .to(to_email)
+                    .subject(alert_title)
+                    .singlepart(
+                        SinglePart::builder()
+                            .header(ContentType::TEXT_PLAIN)
+                            .body(alert_message.to_string()),
+                    )
+                    .context("Failed to build email message")?;
+                
+                // Create SMTP transport
+                let smtp_port = *smtp_port as u16;
+                let smtp_addr = format!("{}:{}", smtp_host, smtp_port);
+                
+                // Determine if we need TLS (check config or default to STARTTLS)
+                let use_tls = config
+                    .get("use_tls")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                
+                let mailer = if use_tls {
+                    AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)
+                        .context(format!("Failed to create SMTP relay for {}", smtp_host))?
+                        .port(smtp_port)
+                        .credentials(Credentials::new(smtp_user.to_string(), smtp_pass.to_string()))
+                        .build()
+                } else {
+                    // For non-TLS (not recommended but supported)
+                    AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(smtp_host)
+                        .port(smtp_port)
+                        .credentials(Credentials::new(smtp_user.to_string(), smtp_pass.to_string()))
+                        .build()
+                };
+                
+                // Send email
+                mailer
+                    .send(email)
+                    .await
+                    .context("Failed to send email via SMTP")?;
+                
                 return Ok(());
             }
         }
         
-        // Fallback: log email
-        eprintln!("[EMAIL] To: {}, Subject: {}, Body: {}", recipient, alert_title, alert_message);
+        // Fallback: log email if no SMTP config
+        eprintln!("[EMAIL] No SMTP config provided. To: {}, Subject: {}, Body: {}", recipient, alert_title, alert_message);
         Ok(())
     }
 
@@ -162,14 +214,16 @@ impl AlertChannelSender {
         app: Option<tauri::AppHandle>,
     ) -> Result<()> {
         if let Some(app_handle) = app {
-            // Emit event to all windows
-            app_handle
-                .emit("alert-notification", serde_json::json!({
-                    "id": alert_id,
-                    "title": alert_title,
-                    "message": alert_message,
-                }))
-                .map_err(|e| anyhow::anyhow!("Failed to emit notification: {}", e))?;
+            // Use desktop notification service
+            use crate::services::desktop_notifications::DesktopNotificationService;
+            DesktopNotificationService::send_alert_notification(
+                &app_handle,
+                alert_id,
+                alert_title,
+                alert_message,
+            )
+            .await
+            .context("Failed to send desktop notification")?;
         } else {
             // Fallback: log push
             eprintln!("[PUSH] Title: {}, Message: {}", alert_title, alert_message);

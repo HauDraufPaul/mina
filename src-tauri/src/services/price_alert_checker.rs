@@ -39,10 +39,13 @@ impl PriceAlertChecker {
         rate_limiter: &Arc<Mutex<RateLimiter>>,
         app: &AppHandle,
     ) -> Result<()> {
-        let db_guard = db.lock()
-            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
-        let store = PriceAlertStore::new(db_guard.conn.clone());
-        drop(db_guard);
+        // Clone the connection before any await to avoid holding MutexGuard across await
+        let conn = {
+            let db_guard = db.lock()
+                .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+            db_guard.conn.clone()
+        };
+        let store = PriceAlertStore::new(conn);
 
         // Get all enabled, non-triggered alerts
         let alerts = store.list_alerts(None, true)?;
@@ -64,13 +67,11 @@ impl PriceAlertChecker {
 
         // Create market manager for this check
         let market_manager = MarketDataManager::new(Some(&**api_key_manager));
-        let rate_limiter_guard = rate_limiter.lock().unwrap();
-        let rate_limiter_ref = Some(&*rate_limiter_guard);
 
         // Check each ticker
         for (ticker, alerts_for_ticker) in ticker_alerts {
-            // Get current price
-            let price_result = market_manager.get_price(&ticker, rate_limiter_ref).await;
+            // Get current price - rate limiter is optional, pass None to avoid holding lock across await
+            let price_result = market_manager.get_price(&ticker, None).await;
             
             if let Ok(price_data) = price_result {
                 let current_price = price_data.price;
@@ -124,6 +125,16 @@ impl PriceAlertChecker {
                             "triggered_at": chrono::Utc::now().timestamp(),
                         });
 
+                        // Send desktop notification
+                        use crate::services::desktop_notifications::DesktopNotificationService;
+                        let _ = DesktopNotificationService::send_price_alert_notification(
+                            &app,
+                            &alert.ticker,
+                            &alert.condition,
+                            alert.target_price,
+                            current_price,
+                        ).await;
+                        
                         // Emit via Tauri event system (frontend will handle WebSocket if needed)
                         use tauri::Emitter;
                         let _ = app.emit("price-alert-triggered", &alert_message);

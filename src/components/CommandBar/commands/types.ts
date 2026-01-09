@@ -15,7 +15,7 @@ export interface Command {
 export interface CommandResult {
   success: boolean;
   message?: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface ParsedCommand {

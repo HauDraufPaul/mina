@@ -18,12 +18,15 @@ pub struct AnalyticsStore {
 impl AnalyticsStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         let store = AnalyticsStore { conn };
-        store.init_schema().unwrap();
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: AnalyticsStore schema initialization failed: {}", e);
+        }
         store
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS analytics_metrics (
@@ -50,7 +53,8 @@ impl AnalyticsStore {
     }
 
     pub fn save_metric(&self, metric_type: &str, value: f64, metadata: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let timestamp = chrono::Utc::now().timestamp();
 
         conn.execute(
@@ -69,7 +73,8 @@ impl AnalyticsStore {
         end_time: Option<i64>,
         limit: Option<i32>,
     ) -> Result<Vec<AnalyticsMetrics>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut query = "SELECT timestamp, metric_type, value, metadata FROM analytics_metrics WHERE metric_type = ?1".to_string();
         
         if start_time.is_some() {
@@ -146,7 +151,8 @@ impl AnalyticsStore {
     }
 
     pub fn get_statistics(&self, metric_type: &str, start_time: Option<i64>, end_time: Option<i64>) -> Result<Statistics> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock()
+            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut query = "SELECT AVG(value), MIN(value), MAX(value), COUNT(*) FROM analytics_metrics WHERE metric_type = ?1".to_string();
         
         if start_time.is_some() {

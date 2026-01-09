@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetProps } from "./WidgetRegistry";
+import { useErrorHandler } from "@/utils/errorHandler";
 
 interface SentimentData {
   ticker: string;
@@ -9,6 +10,7 @@ interface SentimentData {
 }
 
 export default function SentimentWidget({ config }: WidgetProps) {
+  const errorHandler = useErrorHandler();
   const [sentiment, setSentiment] = useState<SentimentData[]>([]);
   const [loading, setLoading] = useState(true);
   const tickers = (config.tickers as string[]) || ["AAPL", "MSFT", "GOOGL"];
@@ -30,7 +32,7 @@ export default function SentimentWidget({ config }: WidgetProps) {
 
         setSentiment(items);
       } catch (err) {
-        console.error("Failed to load sentiment:", err);
+        errorHandler.showError("Failed to load sentiment", err);
       } finally {
         setLoading(false);
       }

@@ -50,7 +50,7 @@ export default function GraphView() {
 
   const elements = useMemo(() => {
     if (!graph) return [];
-    const els: any[] = [];
+    const els: Array<{ data: Record<string, unknown> }> = [];
     for (const n of graph.nodes) {
       els.push({ data: { id: n.id, label: n.label, count: n.count } });
     }
@@ -119,13 +119,13 @@ export default function GraphView() {
                   },
                 },
               ]}
-              cy={(cy: any) => {
-                cy.on("tap", "node", async (evt: any) => {
+              cy={(cy: { on: (event: string, selector: string, handler: (evt: { target: { id: () => string } }) => Promise<void>) => void }) => {
+                cy.on("tap", "node", async (evt: { target: { id: () => string } }) => {
                   const id = evt.target.id();
                   setSelectedEntity(id);
                   setLoadingEntityEvents(true);
                   try {
-                    const evts = await invoke<any[]>("temporal_list_events", { limit: 500 });
+                    const evts = await invoke<Array<Record<string, unknown>>>("temporal_list_events", { limit: 500 });
                     setEntityEvents(
                       evts.filter((e) => typeof e.title === "string" && e.title.toLowerCase().startsWith(id.toLowerCase()))
                     );

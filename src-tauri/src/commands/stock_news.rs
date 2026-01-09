@@ -1,4 +1,5 @@
 use crate::services::{NewsAggregator, SentimentAnalyzer};
+use crate::services::api_key_manager::APIKeyManager;
 use crate::storage::{Database, StockNewsItem, StockNewsStore, StockTicker};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
@@ -73,6 +74,7 @@ pub async fn refresh_stock_news(
     app: tauri::AppHandle,
     tickers: Option<Vec<String>>,
     db: State<'_, Mutex<Database>>,
+    api_key_manager: State<'_, Arc<APIKeyManager>>,
 ) -> Result<usize, String> {
     // Get store
     let store = {
@@ -80,8 +82,8 @@ pub async fn refresh_stock_news(
         Arc::new(Mutex::new(StockNewsStore::new(db_guard.conn.clone())))
     };
 
-    // Create aggregator
-    let aggregator = NewsAggregator::new(store)
+    // Create aggregator with API key manager
+    let aggregator = NewsAggregator::new_with_api_keys(store, Some(&*api_key_manager))
         .map_err(|e| format!("Failed to create news aggregator: {}", e))?;
 
     // Fetch news
@@ -114,6 +116,7 @@ pub async fn refresh_stock_news(
 pub async fn start_news_stream(
     app: tauri::AppHandle,
     db: State<'_, Mutex<Database>>,
+    api_key_manager: State<'_, Arc<APIKeyManager>>,
 ) -> Result<(), String> {
     // Get store
     let store = {
@@ -121,8 +124,8 @@ pub async fn start_news_stream(
         Arc::new(Mutex::new(StockNewsStore::new(db_guard.conn.clone())))
     };
 
-    // Create aggregator
-    let aggregator = NewsAggregator::new(store)
+    // Create aggregator with API key manager
+    let aggregator = NewsAggregator::new_with_api_keys(store, Some(&*api_key_manager))
         .map_err(|e| format!("Failed to create news aggregator: {}", e))?;
 
     // Start real-time stream

@@ -103,7 +103,10 @@ impl EconomicCalendarProvider {
         for event in events {
             let scheduled_at = chrono::NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
                 .or_else(|_| chrono::NaiveDate::parse_from_str(&event.date, "%Y-%m-%d %H:%M:%S"))
-                .map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_else(|| d.and_hms_opt(12, 0, 0).unwrap()))
+                .map(|d| d.and_hms_opt(0, 0, 0)
+                    .unwrap_or_else(|| d.and_hms_opt(12, 0, 0)
+                        .unwrap_or_else(|| d.and_hms_opt(0, 0, 0)
+                            .expect("Failed to create datetime from date"))))
                 .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc))
                 .context("Failed to parse date")?
                 .timestamp();
