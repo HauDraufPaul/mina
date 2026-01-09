@@ -2,6 +2,8 @@ use crate::providers::market_data::MarketDataManager;
 use crate::storage::market_data::{MarketDataStore, MarketPrice, PriceHistory};
 use crate::storage::Database;
 use crate::services::market_data_stream::MarketDataStreamer;
+use crate::services::market_cache::MarketDataCache;
+use crate::services::rate_limiter::RateLimiter;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
@@ -20,25 +22,40 @@ pub struct ChartDataPoint {
 pub async fn get_market_price(
     ticker: String,
     db: State<'_, Mutex<Database>>,
+    cache: State<'_, Mutex<MarketDataCache>>,
+    rate_limiter: State<'_, Mutex<RateLimiter>>,
 ) -> Result<Option<MarketPrice>, String> {
+    // Try in-memory cache first
+    if let Ok(cache_guard) = cache.lock() {
+        if let Some(price) = cache_guard.get_price(&ticker) {
+            return Ok(Some(price));
+        }
+    }
+    
     let conn = {
         let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
         db_guard.conn.clone()
     };
     let store = MarketDataStore::new(conn);
     
-    // Try to get from cache first
+    // Try database cache
     if let Ok(Some(price)) = store.get_price(&ticker) {
-        // Check if cache is fresh (less than 1 minute old)
         let now = chrono::Utc::now().timestamp();
         if now - price.timestamp < 60 {
+            // Update in-memory cache
+            if let Ok(cache_guard) = cache.lock() {
+                cache_guard.set_price(ticker.clone(), price.clone());
+            }
             return Ok(Some(price));
         }
     }
 
     // Fetch from provider
-    let manager = MarketDataManager::new();
-    match manager.get_price(&ticker).await {
+    // TODO: Get API key manager from state when available
+    let manager = MarketDataManager::new(None);
+    let rate_limiter_guard = rate_limiter.lock().ok();
+    let rate_limiter_ref = rate_limiter_guard.as_deref();
+    match manager.get_price(&ticker, rate_limiter_ref).await {
         Ok(price_data) => {
             let price = MarketPrice {
                 ticker: price_data.ticker.clone(),
@@ -49,14 +66,19 @@ pub async fn get_market_price(
                 timestamp: price_data.timestamp,
             };
             
-            // Cache it (need to get connection again)
+            // Cache in memory
+            if let Ok(cache_guard) = cache.lock() {
+                cache_guard.set_price(ticker.clone(), price.clone());
+            }
+            
+            // Cache in database
             let conn = {
                 let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
                 db_guard.conn.clone()
             };
             let store = MarketDataStore::new(conn);
             if let Err(e) = store.upsert_price(&price) {
-                eprintln!("Failed to cache price: {}", e);
+                eprintln!("Failed to cache price in database: {}", e);
             }
             
             Ok(Some(price))
@@ -70,37 +92,66 @@ pub async fn get_market_prices(
     tickers: Vec<String>,
     db: State<'_, Mutex<Database>>,
     streamer: State<'_, Mutex<MarketDataStreamer>>,
+    cache: State<'_, Mutex<MarketDataCache>>,
+    rate_limiter: State<'_, Mutex<RateLimiter>>,
 ) -> Result<Vec<MarketPrice>, String> {
-    let conn = {
-        let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
-        db_guard.conn.clone()
-    };
-    let store = MarketDataStore::new(conn);
+    let mut result_map: std::collections::HashMap<String, MarketPrice> = std::collections::HashMap::new();
+    let mut to_fetch: Vec<String> = Vec::new();
     
-    // Try to get from cache first
-    let cached = store.get_prices(&tickers).unwrap_or_default();
-    let mut cached_map: std::collections::HashMap<String, MarketPrice> = cached
-        .into_iter()
-        .map(|p| (p.ticker.clone(), p))
-        .collect();
-    
-    let now = chrono::Utc::now().timestamp();
-    let to_fetch: Vec<String> = tickers
-        .iter()
-        .filter(|t| {
-            if let Some(price) = cached_map.get(*t) {
-                now - price.timestamp >= 60 // Cache expired
+    // Check in-memory cache first
+    if let Ok(cache_guard) = cache.lock() {
+        for ticker in &tickers {
+            if let Some(price) = cache_guard.get_price(ticker) {
+                result_map.insert(ticker.clone(), price);
             } else {
-                true // Not cached
+                to_fetch.push(ticker.clone());
             }
-        })
-        .cloned()
-        .collect();
+        }
+    } else {
+        to_fetch = tickers.clone();
+    }
+    
+    // Check database cache for remaining tickers
+    if !to_fetch.is_empty() {
+        let conn = {
+            let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            db_guard.conn.clone()
+        };
+        let store = MarketDataStore::new(conn);
+        
+        let cached = store.get_prices(&to_fetch).unwrap_or_default();
+        let now = chrono::Utc::now().timestamp();
+        
+        let mut still_to_fetch = Vec::new();
+        for price in cached {
+            if now - price.timestamp < 60 {
+                // Fresh cache
+                result_map.insert(price.ticker.clone(), price.clone());
+                // Update in-memory cache
+                if let Ok(cache_guard) = cache.lock() {
+                    cache_guard.set_price(price.ticker.clone(), price);
+                }
+            } else {
+                still_to_fetch.push(price.ticker.clone());
+            }
+        }
+        
+        // Add tickers not in database cache
+        for ticker in &to_fetch {
+            if !result_map.contains_key(ticker) {
+                still_to_fetch.push(ticker.clone());
+            }
+        }
+        to_fetch = still_to_fetch;
+    }
 
     // Fetch missing/expired prices
     if !to_fetch.is_empty() {
-        let manager = MarketDataManager::new();
-        if let Ok(prices) = manager.get_prices(&to_fetch).await {
+        // TODO: Get API key manager from state when available
+        let manager = MarketDataManager::new(None);
+        let rate_limiter_guard = rate_limiter.lock().ok();
+        let rate_limiter_ref = rate_limiter_guard.as_deref();
+        if let Ok(prices) = manager.get_prices(&to_fetch, rate_limiter_ref).await {
             for price_data in prices {
                 let price = MarketPrice {
                     ticker: price_data.ticker.clone(),
@@ -111,16 +162,28 @@ pub async fn get_market_prices(
                     timestamp: price_data.timestamp,
                 };
                 
+                // Cache in memory
+                if let Ok(cache_guard) = cache.lock() {
+                    cache_guard.set_price(price.ticker.clone(), price.clone());
+                }
+                
+                // Cache in database
+                let conn = {
+                    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                    db_guard.conn.clone()
+                };
+                let store = MarketDataStore::new(conn);
                 if let Err(e) = store.upsert_price(&price) {
                     eprintln!("Failed to cache price: {}", e);
                 }
                 
-                // Push to streamer
-                if let Ok(streamer) = streamer.lock() {
-                    streamer.update_price(price.clone());
+                // Push to streamer and subscribe ticker
+                if let Ok(streamer_guard) = streamer.lock() {
+                    streamer_guard.update_price(price.clone());
+                    streamer_guard.subscribe(vec![price.ticker.clone()]);
                 }
                 
-                cached_map.insert(price.ticker.clone(), price);
+                result_map.insert(price.ticker.clone(), price);
             }
         }
     }
@@ -128,7 +191,7 @@ pub async fn get_market_prices(
     // Return prices in order requested
     let result: Vec<MarketPrice> = tickers
         .iter()
-        .filter_map(|t| cached_map.get(t).cloned())
+        .filter_map(|t| result_map.get(t).cloned())
         .collect();
 
     Ok(result)
@@ -141,35 +204,86 @@ pub async fn get_chart_data(
     to_ts: i64,
     interval: String,
     db: State<'_, Mutex<Database>>,
+    cache: State<'_, Mutex<MarketDataCache>>,
+    rate_limiter: State<'_, Mutex<RateLimiter>>,
 ) -> Result<Vec<ChartDataPoint>, String> {
+    use crate::providers::market_data::OHLCVData;
+    
+    // Try in-memory cache first
+    if let Ok(cache_guard) = cache.lock() {
+        if let Some(history) = cache_guard.get_history(&ticker, from_ts, to_ts) {
+            return Ok(history
+                .into_iter()
+                .map(|d| ChartDataPoint {
+                    time: d.timestamp,
+                    open: d.open,
+                    high: d.high,
+                    low: d.low,
+                    close: d.close,
+                    volume: d.volume,
+                })
+                .collect());
+        }
+    }
+    
     let conn = {
         let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
         db_guard.conn.clone()
     };
     let store = MarketDataStore::new(conn);
     
-    // Try to get from cache first
+    // Try database cache
     if let Ok(history) = store.get_price_history(&ticker, from_ts, to_ts, Some(10000)) {
         if !history.is_empty() {
-            return Ok(history
+            let ohlcv_data: Vec<OHLCVData> = history
                 .into_iter()
-                .map(|h| ChartDataPoint {
-                    time: h.timestamp,
+                .map(|h| OHLCVData {
+                    timestamp: h.timestamp,
                     open: h.open,
                     high: h.high,
                     low: h.low,
                     close: h.close,
                     volume: h.volume,
                 })
+                .collect();
+            
+            // Cache in memory
+            if let Ok(cache_guard) = cache.lock() {
+                cache_guard.set_history(ticker.clone(), from_ts, to_ts, ohlcv_data.clone());
+            }
+            
+            return Ok(ohlcv_data
+                .into_iter()
+                .map(|d| ChartDataPoint {
+                    time: d.timestamp,
+                    open: d.open,
+                    high: d.high,
+                    low: d.low,
+                    close: d.close,
+                    volume: d.volume,
+                })
                 .collect());
         }
     }
 
     // Fetch from provider
-    let manager = MarketDataManager::new();
-    match manager.get_history(&ticker, from_ts, to_ts, &interval).await {
+    // TODO: Get API key manager from state when available
+    let manager = MarketDataManager::new(None);
+    let rate_limiter_guard = rate_limiter.lock().ok();
+    let rate_limiter_ref = rate_limiter_guard.as_deref();
+    match manager.get_history(&ticker, from_ts, to_ts, &interval, rate_limiter_ref).await {
         Ok(ohlcv_data) => {
-            // Cache the data
+            // Cache in memory
+            if let Ok(cache_guard) = cache.lock() {
+                cache_guard.set_history(ticker.clone(), from_ts, to_ts, ohlcv_data.clone());
+            }
+            
+            // Cache in database
+            let conn = {
+                let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+                db_guard.conn.clone()
+            };
+            let store = MarketDataStore::new(conn);
             for data in &ohlcv_data {
                 let history = PriceHistory {
                     id: 0,

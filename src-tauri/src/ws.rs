@@ -200,6 +200,66 @@ impl WsServer {
         }
         topics.into_iter().collect()
     }
+
+    /// Add a new connection and return a receiver for messages
+    pub fn add_connection(&self, id: String, topics: Vec<String>) -> Result<broadcast::Receiver<WsMessage>, String> {
+        let (tx, rx) = broadcast::channel::<WsMessage>(1000);
+        let conn = WsConnection {
+            id: id.clone(),
+            topics,
+            sender: tx,
+        };
+        let mut conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
+        conns.insert(id, conn);
+        Ok(rx)
+    }
+
+    /// Remove a connection
+    pub fn remove_connection(&self, id: &str) -> Result<(), String> {
+        let mut conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
+        conns.remove(id);
+        Ok(())
+    }
+
+    /// Update subscriptions for a connection
+    pub fn update_subscriptions(&self, id: &str, topics: Vec<String>) -> Result<(), String> {
+        self.subscribe(id.to_string(), topics)
+    }
+
+    /// Broadcast a message to all connections subscribed to a specific topic
+    pub fn broadcast_to_topic(&self, topic: &str, message: WsMessage) -> Result<usize, String> {
+        let conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
+        let mut count = 0;
+        for conn in conns.values() {
+            if conn.topics.contains(&topic.to_string()) || conn.topics.contains(&"*".to_string()) {
+                if conn.sender.send(message.clone()).is_ok() {
+                    count += 1;
+                }
+            }
+        }
+        Ok(count)
+    }
+
+    /// Get connection status
+    pub fn get_connection_status(&self, id: &str) -> Result<bool, String> {
+        let conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
+        Ok(conns.contains_key(id))
+    }
+
+    /// Get topics for a connection
+    pub fn get_connection_topics(&self, id: &str) -> Result<Vec<String>, String> {
+        let conns = self.connections.lock()
+            .map_err(|e| format!("Failed to lock connections: {}", e))?;
+        if let Some(conn) = conns.get(id) {
+            Ok(conn.topics.clone())
+        } else {
+            Err("Connection not found".to_string())
+        }
+    }
 }
 
 impl Default for WsServer {

@@ -6,6 +6,7 @@ pub mod system_utils;
 pub mod ollama;
 pub mod news;
 pub mod market_data;
+pub mod economic_calendar;
 
 pub use system::SystemProvider;
 pub use network::NetworkProvider;

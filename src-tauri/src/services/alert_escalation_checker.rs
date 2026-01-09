@@ -19,14 +19,14 @@ impl AlertEscalationChecker {
             loop {
                 interval.tick().await;
 
-                if let Err(e) = Self::check_pending_escalations(&db) {
+                if let Err(e) = Self::check_pending_escalations(&db, &app) {
                     eprintln!("Error checking pending escalations: {}", e);
                 }
             }
         });
     }
 
-    fn check_pending_escalations(db: &Arc<Mutex<Database>>) -> Result<()> {
+    fn check_pending_escalations(db: &Arc<Mutex<Database>>, app: &tauri::AppHandle) -> Result<()> {
         let db_guard = db.lock().map_err(|e| anyhow::anyhow!("Database lock error: {}", e))?;
         let store = TemporalStore::new(db_guard.conn.clone());
         
@@ -42,9 +42,17 @@ impl AlertEscalationChecker {
         for alert in alerts {
             if alert.status == "new" || alert.status == "snoozed" {
                 if let Some(rule) = rules_map.get(&alert.rule_id) {
-                    if let Err(e) = AlertEscalator::check_and_escalate(&store, &alert, rule) {
-                        eprintln!("Failed to check escalation for alert {}: {}", alert.id, e);
-                    }
+                    let alert_clone = alert.clone();
+                    let rule_clone = (*rule).clone();
+                    let store_conn = db_guard.conn.clone();
+                    let app_handle = app.clone();
+                    
+                    tauri::async_runtime::spawn(async move {
+                        let store = TemporalStore::new(store_conn);
+                        if let Err(e) = AlertEscalator::check_and_escalate(&store, &alert_clone, &rule_clone, Some(app_handle)).await {
+                            eprintln!("Failed to check escalation for alert {}: {}", alert_clone.id, e);
+                        }
+                    });
                 }
             }
         }

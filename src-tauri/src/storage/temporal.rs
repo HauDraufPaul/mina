@@ -675,8 +675,8 @@ impl TemporalStore {
     }
 
     fn check_alert_escalation(&self, alert: &Alert, rule: &AlertRule) -> Result<()> {
-        use crate::services::alert_escalator::AlertEscalator;
-        let _ = AlertEscalator::check_and_escalate(self, alert, rule);
+        // Escalation is now handled asynchronously by AlertEscalationChecker
+        // This method is kept for compatibility but does nothing
         Ok(())
     }
 

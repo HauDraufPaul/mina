@@ -94,8 +94,9 @@ impl NewsAggregator {
             matcher.match_tickers(&text)
         };
 
-        // Calculate sentiment score
-        let sentiment_score = SentimentAnalyzer::analyze(&text);
+        // Calculate sentiment score using VADER-like analyzer
+        let analyzer = SentimentAnalyzer::new();
+        let sentiment_score = analyzer.analyze(&text);
 
         // Save to database
         let news_id = {
@@ -137,7 +138,7 @@ impl NewsAggregator {
             source_id: item.source_id,
             published_at: item.published_at,
             fetched_at: chrono::Utc::now().timestamp(),
-            sentiment: None, // TODO: Implement sentiment analysis
+            sentiment: Some(sentiment_score),
             relevance_score,
             tickers: associated_tickers,
             created_at: chrono::Utc::now().timestamp(),

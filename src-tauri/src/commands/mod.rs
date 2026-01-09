@@ -25,6 +25,7 @@ pub mod market_data;
 pub mod portfolio;
 pub mod economic_calendar;
 pub mod messaging;
+pub mod api_keys;
 
 // Re-exports are not needed - commands are registered directly in lib.rs
 

@@ -379,17 +379,62 @@ pub fn temporal_get_alert_label(
 }
 
 #[tauri::command]
-pub fn escalate_alert(
+pub async fn escalate_alert(
     alert_id: i64,
     escalation_level: i32,
     channel: String,
     db: State<'_, Mutex<Database>>,
+    app: tauri::AppHandle,
 ) -> Result<i64, String> {
+    use crate::services::alert_escalator::AlertEscalator;
+    
     let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
     let store = TemporalStore::new(db_guard.conn.clone());
-    store
-        .create_escalation(alert_id, escalation_level, &channel)
-        .map_err(|e| format!("Failed to escalate alert: {}", e))
+    
+    // Get alert and rule
+    let alerts = store.list_alerts(1000, None, None)
+        .map_err(|e| format!("Failed to list alerts: {}", e))?;
+    let alert = alerts.iter()
+        .find(|a| a.id == alert_id)
+        .ok_or_else(|| format!("Alert {} not found", alert_id))?;
+    
+    let rules = store.list_alert_rules()
+        .map_err(|e| format!("Failed to list rules: {}", e))?;
+    let rule = rules.iter()
+        .find(|r| r.id == alert.rule_id)
+        .ok_or_else(|| format!("Rule {} not found", alert.rule_id))?;
+    
+    // Create escalation record
+    let escalation_id = store.create_escalation(alert_id, escalation_level, &channel)
+        .map_err(|e| format!("Failed to create escalation: {}", e))?;
+    
+    // Get level config for this escalation level
+    let level_config = rule.escalation_config.as_ref()
+        .and_then(|config| {
+            config.get("levels")
+                .and_then(|v| v.as_array())
+                .and_then(|levels| levels.get((escalation_level - 1) as usize))
+                .cloned()
+        });
+    
+    // Send escalation
+    if let Err(e) = AlertEscalator::send_escalation(
+        &store,
+        escalation_id,
+        &channel,
+        &alert,
+        &level_config.unwrap_or(serde_json::json!({})),
+        Some(app),
+    ).await {
+        eprintln!("Failed to send escalation: {}", e);
+        store.mark_escalation_sent(escalation_id, Some(&format!("{}", e)))
+            .map_err(|e| format!("Failed to mark escalation: {}", e))?;
+    } else {
+        store.mark_escalation_sent(escalation_id, None)
+            .map_err(|e| format!("Failed to mark escalation: {}", e))?;
+    }
+    
+    Ok(escalation_id)
 }
 
 #[tauri::command]

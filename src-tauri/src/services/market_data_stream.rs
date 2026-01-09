@@ -1,5 +1,8 @@
 use crate::storage::market_data::MarketPrice;
 use crate::ws::{WsMessage, WsServer};
+use crate::providers::market_data::MarketDataManager;
+use crate::storage::market_data::MarketDataStore;
+use crate::storage::Database;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
@@ -86,6 +89,94 @@ impl MarketDataStreamer {
                 }
             }
         });
+    }
+
+    /// Start active fetching loop for subscribed tickers
+    pub fn start_fetching_loop(&self, app: tauri::AppHandle, db: Arc<Mutex<Database>>) {
+        let streamer = Arc::new(self.clone());
+        let subscribers = self.subscribers.clone();
+        let pending_updates = self.pending_updates.clone();
+
+        tauri::async_runtime::spawn(async move {
+            let mut interval = interval(Duration::from_secs(5)); // Fetch every 5 seconds
+            // TODO: Get API key manager from state when available
+            let manager = MarketDataManager::new(None);
+            let last_fetch_time = Arc::new(Mutex::new(std::collections::HashMap::<String, i64>::new()));
+
+            loop {
+                interval.tick().await;
+
+                // Get subscribed tickers
+                let tickers_to_fetch: Vec<String> = {
+                    let subs = subscribers.lock().unwrap();
+                    subs.clone()
+                };
+
+                if !tickers_to_fetch.is_empty() {
+                    // Rate limit: only fetch if last fetch was > 1 second ago
+                    let now = chrono::Utc::now().timestamp();
+                    let tickers_to_fetch_now: Vec<String> = tickers_to_fetch
+                        .into_iter()
+                        .filter(|ticker| {
+                            let last_fetch = last_fetch_time.get(ticker).copied().unwrap_or(0);
+                            now - last_fetch >= 1 // At least 1 second between fetches per ticker
+                        })
+                        .collect();
+
+                    if !tickers_to_fetch_now.is_empty() {
+                        // Fetch prices from provider
+                        if let Ok(prices) = manager.get_prices(&tickers_to_fetch_now, None).await {
+                            // Update last fetch time
+                            for ticker in &tickers_to_fetch_now {
+                                last_fetch_time.insert(ticker.clone(), now);
+                            }
+
+                            // Store in database and push to streamer
+                            let conn = {
+                                let db_guard = db.lock().unwrap();
+                                db_guard.conn.clone()
+                            };
+                            let store = MarketDataStore::new(conn);
+
+                            for price_data in prices {
+                                let price = MarketPrice {
+                                    ticker: price_data.ticker.clone(),
+                                    price: price_data.price,
+                                    change: price_data.change,
+                                    change_percent: price_data.change_percent,
+                                    volume: price_data.volume,
+                                    timestamp: price_data.timestamp,
+                                };
+
+                                // Cache in database
+                                if let Err(e) = store.upsert_price(&price) {
+                                    eprintln!("Failed to cache price: {}", e);
+                                }
+
+                                // Push to streamer for batching
+                                {
+                                    let mut pending = pending_updates.lock().unwrap();
+                                    pending.insert(price.ticker.clone(), price);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+impl Clone for MarketDataStreamer {
+    fn clone(&self) -> Self {
+        MarketDataStreamer {
+            ws_server: self.ws_server.clone(),
+            pending_updates: Arc::new(Mutex::new(HashMap::new())),
+            subscribers: Arc::new(Mutex::new({
+                let subs = self.subscribers.lock().unwrap();
+                subs.clone()
+            })),
+        }
     }
 }
 

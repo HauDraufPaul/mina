@@ -6,6 +6,11 @@ pub mod alert_escalator;
 pub mod sentiment_analyzer;
 pub mod market_data_stream;
 pub mod alert_escalation_checker;
+pub mod alert_channels;
+pub mod embeddings;
+pub mod api_key_manager;
+pub mod market_cache;
+pub mod rate_limiter;
 
 pub use ticker_matcher::TickerMatcher;
 pub use news_aggregator::NewsAggregator;

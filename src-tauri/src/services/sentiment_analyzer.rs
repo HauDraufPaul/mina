@@ -1,78 +1,114 @@
 use anyhow::Result;
+use crate::data::sentiment_words::{
+    get_positive_words, get_negative_words, get_intensifiers, get_negations, get_financial_context
+};
+use std::collections::{HashMap, HashSet};
 
-/// Simple sentiment analyzer using keyword-based approach
+/// VADER-like sentiment analyzer
 /// Returns score from -1.0 (very negative) to 1.0 (very positive)
-pub struct SentimentAnalyzer;
+pub struct SentimentAnalyzer {
+    positive_words: HashMap<String, f64>,
+    negative_words: HashMap<String, f64>,
+    intensifiers: HashMap<String, f64>,
+    negations: HashSet<String>,
+    financial_context: HashMap<String, f64>,
+}
 
 impl SentimentAnalyzer {
-    pub fn analyze(text: &str) -> f64 {
+    pub fn new() -> Self {
+        SentimentAnalyzer {
+            positive_words: get_positive_words(),
+            negative_words: get_negative_words(),
+            intensifiers: get_intensifiers(),
+            negations: get_negations(),
+            financial_context: get_financial_context(),
+        }
+    }
+
+    /// Analyze sentiment using VADER-like algorithm
+    pub fn analyze(&self, text: &str) -> f64 {
         let text_lower = text.to_lowercase();
+        let words: Vec<&str> = text_lower
+            .split_whitespace()
+            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '\''))
+            .filter(|w| !w.is_empty())
+            .collect();
+
+        let mut scores = Vec::new();
+        let mut i = 0;
+
+        while i < words.len() {
+            let word = words[i];
+            let mut score = 0.0;
+            let mut intensity = 1.0;
+            let mut is_negated = false;
+
+            // Check for intensifiers (look back 1-2 words)
+            if i > 0 {
+                let prev_word = words[i - 1];
+                if let Some(intensity_mult) = self.intensifiers.get(prev_word) {
+                    intensity = *intensity_mult;
+                }
+            }
+            if i > 1 {
+                let prev_word = words[i - 2];
+                if let Some(intensity_mult) = self.intensifiers.get(prev_word) {
+                    intensity = *intensity_mult;
+                }
+            }
+
+            // Check for negations (look back 1-3 words)
+            for j in (i.saturating_sub(3)..i).rev() {
+                if self.negations.contains(words[j]) {
+                    is_negated = true;
+                    break;
+                }
+            }
+
+            // Check if word is positive or negative
+            if let Some(weight) = self.positive_words.get(word) {
+                score = *weight;
+            } else if let Some(weight) = self.negative_words.get(word) {
+                score = *weight;
+                // Apply financial context if applicable
+                if let Some(financial_weight) = self.financial_context.get(word) {
+                    // Use financial weight if it's less extreme
+                    if financial_weight.abs() < weight.abs() {
+                        score = *financial_weight;
+                    }
+                }
+            }
+
+            // Apply intensifier
+            if score != 0.0 {
+                score *= intensity;
+            }
+
+            // Apply negation (flip sign and reduce magnitude)
+            if is_negated && score != 0.0 {
+                score = -score * 0.5; // Flip and reduce
+            }
+
+            if score != 0.0 {
+                scores.push(score);
+            }
+
+            i += 1;
+        }
+
+        // Calculate compound score
+        if scores.is_empty() {
+            return 0.0;
+        }
+
+        // Sum all scores
+        let sum: f64 = scores.iter().sum();
         
-        // Positive keywords with weights
-        let positive_keywords: Vec<(&str, f64)> = vec![
-            ("surge", 0.8),
-            ("rally", 0.9),
-            ("gain", 0.7),
-            ("profit", 0.8),
-            ("growth", 0.7),
-            ("beat", 0.8),
-            ("exceed", 0.7),
-            ("strong", 0.6),
-            ("positive", 0.7),
-            ("upgrade", 0.8),
-            ("bullish", 0.9),
-            ("outperform", 0.8),
-            ("breakthrough", 0.9),
-            ("success", 0.7),
-            ("win", 0.7),
-        ];
-
-        // Negative keywords with weights
-        let negative_keywords: Vec<(&str, f64)> = vec![
-            ("crash", -0.9),
-            ("plunge", -0.8),
-            ("drop", -0.7),
-            ("loss", -0.8),
-            ("decline", -0.7),
-            ("miss", -0.8),
-            ("fall", -0.7),
-            ("weak", -0.6),
-            ("negative", -0.7),
-            ("downgrade", -0.8),
-            ("bearish", -0.9),
-            ("underperform", -0.8),
-            ("failure", -0.8),
-            ("concern", -0.6),
-            ("risk", -0.5),
-            ("warn", -0.7),
-        ];
-
-        let mut score = 0.0;
-        let mut count = 0.0;
-
-        // Check positive keywords
-        for (keyword, weight) in &positive_keywords {
-            if text_lower.contains(keyword) {
-                score += weight;
-                count += 1.0;
-            }
-        }
-
-        // Check negative keywords
-        for (keyword, weight) in &negative_keywords {
-            if text_lower.contains(keyword) {
-                score += weight;
-                count += 1.0;
-            }
-        }
-
-        // Normalize score
-        if count > 0.0 {
-            let max_count = if count > 1.0 { count } else { 1.0 };
-            score / max_count
-        } else {
-            0.0 // Neutral if no keywords found
-        }
+        // Normalize to [-1, 1] range using hyperbolic tangent-like function
+        let normalized = (sum / (sum.abs() + 15.0)).tanh();
+        
+        // Clamp to ensure we're in [-1, 1]
+        normalized.max(-1.0).min(1.0)
     }
 
     /// Aggregate sentiment scores over time
@@ -100,5 +136,20 @@ impl SentimentAnalyzer {
 
         let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x.powi(2));
         slope
+    }
+}
+
+impl Default for SentimentAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// Static method for backward compatibility
+impl SentimentAnalyzer {
+    /// Static method for backward compatibility
+    pub fn analyze_static(text: &str) -> f64 {
+        let analyzer = SentimentAnalyzer::new();
+        analyzer.analyze(text)
     }
 }

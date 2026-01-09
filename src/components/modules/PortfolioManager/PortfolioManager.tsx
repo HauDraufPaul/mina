@@ -6,6 +6,7 @@ import Modal from "@/components/ui/Modal";
 import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react";
 import { useErrorHandler } from "@/utils/errorHandler";
 import ImpactAnalysis from "./ImpactAnalysis";
+import { realtimeService } from "@/services/realtimeService";
 
 interface Portfolio {
   id: number;
@@ -66,6 +67,24 @@ export default function PortfolioManager() {
       loadPortfolioValue(selectedPortfolio);
     }
   }, [selectedPortfolio]);
+
+  // Subscribe to real-time market data updates for portfolio holdings
+  useEffect(() => {
+    if (selectedPortfolio && portfolioValue && holdings.length > 0) {
+      // Get all tickers from holdings
+      const tickers = holdings.map(h => h.ticker);
+      
+      // Subscribe to market data batch updates
+      const unsubscribe = realtimeService.subscribe("market-data-batch", () => {
+        // Recalculate portfolio value when prices update
+        loadPortfolioValue(selectedPortfolio);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [selectedPortfolio, portfolioValue, holdings]);
 
   const loadPortfolios = async () => {
     try {

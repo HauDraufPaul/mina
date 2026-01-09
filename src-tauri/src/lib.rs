@@ -9,6 +9,7 @@ mod commands;
 mod ws;
 mod utils;
 mod services;
+mod data;
 
 use storage::Database;
 use storage::{RateLimitStore, TestingStore, AnalyticsStore, VectorStore, AIStore, AutomationStore, DevOpsStore, OSINTStore, TemporalStore, ProjectStore, MigrationTracker, StockNewsStore};
@@ -187,8 +188,11 @@ pub fn run() {
             
             eprintln!("MINA: Stores initialized");
             
-            // Clone connection for escalation checker before moving db
+            // Clone connections before moving db
             let db_conn_for_escalation = db.conn.clone();
+            let db_conn_for_streaming = db.conn.clone();
+            
+            // Now manage the database (before it's used elsewhere)
             app.manage(Mutex::new(db));
             
             // Create escalation checker database reference
@@ -224,10 +228,52 @@ pub fn run() {
             ws_server.start_broadcast(app.handle().clone());
             app.manage(Mutex::new(ws_server.clone()));
             
+            // Initialize rate limiter
+            eprintln!("MINA: Initializing rate limiter...");
+            let mut rate_limiter = services::rate_limiter::RateLimiter::new();
+            // Register rate limits for providers
+            rate_limiter.register_limit("Yahoo Finance".to_string(), 100, 60); // 100 requests per minute
+            rate_limiter.register_limit("Alpha Vantage".to_string(), 5, 60); // 5 requests per minute (free tier)
+            rate_limiter.register_limit("Polygon.io".to_string(), 5, 60); // 5 requests per minute (free tier)
+            let rate_limiter_arc = Arc::new(rate_limiter);
+            app.manage(Mutex::new((*rate_limiter_arc).clone()));
+            
+            // Start rate limiter cleanup task
+            let rate_limiter_for_cleanup = rate_limiter_arc.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60)); // Cleanup every minute
+                loop {
+                    interval.tick().await;
+                    rate_limiter_for_cleanup.cleanup();
+                }
+            });
+            
+            // Initialize market data cache
+            eprintln!("MINA: Initializing market data cache...");
+            let market_cache = services::market_cache::MarketDataCache::new();
+            let cache_for_cleanup = Arc::new(market_cache.clone());
+            app.manage(Mutex::new(market_cache));
+            
+            // Start cache cleanup task
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Cleanup every 5 minutes
+                loop {
+                    interval.tick().await;
+                    cache_for_cleanup.cleanup();
+                }
+            });
+            
             // Initialize market data streamer
             eprintln!("MINA: Initializing market data streamer...");
             let market_streamer = Arc::new(services::market_data_stream::MarketDataStreamer::new(ws_server.clone()));
             market_streamer.start_batching(app.handle().clone());
+            
+            // Use cloned connection for fetching loop
+            let db_for_streaming = Arc::new(Mutex::new(Database {
+                conn: db_conn_for_streaming,
+            }));
+            market_streamer.start_fetching_loop(app.handle().clone(), db_for_streaming);
+            
             app.manage(Mutex::new(market_streamer));
             
             // Start alert escalation checker
@@ -277,6 +323,11 @@ pub fn run() {
             commands::ws::get_ws_connection_count,
             commands::ws::get_ws_topics,
             commands::ws::publish_ws_message,
+            commands::ws::ws_connect,
+            commands::ws::ws_subscribe,
+            commands::ws::ws_unsubscribe,
+            commands::ws::ws_get_connection_status,
+            commands::ws::ws_disconnect,
             commands::auth::set_pin,
             commands::auth::verify_pin,
             commands::auth::create_session,
@@ -429,12 +480,18 @@ pub fn run() {
             commands::economic_calendar::get_event_impact_prediction,
             commands::economic_calendar::record_event_outcome,
             commands::economic_calendar::get_event_impact_history,
+            commands::economic_calendar::sync_economic_events,
             commands::messaging::messaging_create_conversation,
             commands::messaging::messaging_list_conversations,
             commands::messaging::send_message,
             commands::messaging::get_conversation_messages,
             commands::messaging::attach_market_context,
             commands::messaging::get_message_attachments,
+            commands::api_keys::store_api_key,
+            commands::api_keys::get_api_key,
+            commands::api_keys::delete_api_key,
+            commands::api_keys::list_api_key_providers,
+            commands::api_keys::has_api_key,
             get_recent_errors,
             save_error
         ])

@@ -1,15 +1,18 @@
 use crate::storage::temporal::{TemporalStore, Alert, AlertRule, AlertEscalation};
+use crate::services::alert_channels::AlertChannelSender;
 use anyhow::Result;
 use serde_json::Value;
+use tauri::AppHandle;
 
 pub struct AlertEscalator;
 
 impl AlertEscalator {
     /// Check if alert should be escalated and create escalation records
-    pub fn check_and_escalate(
+    pub async fn check_and_escalate(
         store: &TemporalStore,
         alert: &Alert,
         rule: &AlertRule,
+        app: Option<tauri::AppHandle>,
     ) -> Result<Vec<AlertEscalation>> {
         let mut escalations = Vec::new();
 
@@ -32,7 +35,7 @@ impl AlertEscalator {
                                     )?;
                                     
                                     // Try to send escalation
-                                    if let Err(e) = Self::send_escalation(store, escalation_id, channel, alert, level_config) {
+                                    if let Err(e) = Self::send_escalation(store, escalation_id, channel, alert, level_config, app.clone()).await {
                                         eprintln!("Failed to send escalation: {}", e);
                                         store.mark_escalation_sent(escalation_id, Some(&format!("{}", e)))?;
                                     } else {
@@ -87,38 +90,74 @@ impl AlertEscalator {
         Ok(false)
     }
 
-    fn send_escalation(
-        store: &TemporalStore,
-        escalation_id: i64,
+    pub async fn send_escalation(
+        _store: &TemporalStore,
+        _escalation_id: i64,
         channel: &str,
         alert: &Alert,
         level_config: &Value,
+        app: Option<tauri::AppHandle>,
     ) -> Result<()> {
+        // Alert payload is already a Value
+        let alert_payload = &alert.payload_json;
+        
+        let alert_title = alert_payload.get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Alert")
+            .to_string();
+        
+        let alert_message = alert_payload.get("message")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                serde_json::to_string(alert_payload).unwrap_or_else(|_| "Alert triggered".to_string())
+            });
+        
         match channel {
             "email" => {
-                // TODO: Implement email sending
-                // For now, just log
-                eprintln!("Email escalation for alert {}: {}", alert.id, alert.payload_json);
-                Ok(())
+                let recipient = level_config.get("email")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Email recipient not configured"))?;
+                
+                AlertChannelSender::send_email(
+                    alert.id,
+                    &alert_title,
+                    &alert_message,
+                    recipient,
+                    level_config.get("email_config"),
+                ).await
             }
             "sms" => {
-                // TODO: Implement SMS sending
-                eprintln!("SMS escalation for alert {}: {}", alert.id, alert.payload_json);
-                Ok(())
+                let recipient = level_config.get("phone")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Phone number not configured"))?;
+                
+                AlertChannelSender::send_sms(
+                    alert.id,
+                    &alert_message,
+                    recipient,
+                    level_config.get("sms_config"),
+                ).await
             }
             "webhook" => {
-                if let Some(url) = level_config.get("webhook_url").and_then(|v| v.as_str()) {
-                    // TODO: Implement webhook POST
-                    eprintln!("Webhook escalation for alert {} to {}: {}", alert.id, url, alert.payload_json);
-                    Ok(())
-                } else {
-                    anyhow::bail!("Webhook URL not configured")
-                }
+                let url = level_config.get("webhook_url")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Webhook URL not configured"))?;
+                
+                AlertChannelSender::send_webhook(
+                    alert.id,
+                    &alert_payload,
+                    url,
+                    level_config.get("webhook_config"),
+                ).await
             }
             "push" => {
-                // TODO: Implement push notification
-                eprintln!("Push escalation for alert {}: {}", alert.id, alert.payload_json);
-                Ok(())
+                AlertChannelSender::send_push(
+                    alert.id,
+                    &alert_title,
+                    &alert_message,
+                    app,
+                ).await
             }
             _ => {
                 anyhow::bail!("Unknown channel: {}", channel)
