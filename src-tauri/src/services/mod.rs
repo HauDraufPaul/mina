@@ -22,10 +22,13 @@ pub mod workflow_scheduler;
 pub mod automation_event_bus;
 pub mod event_bridge;
 pub mod command_dispatcher;
+pub mod command_registry;
 pub mod script_bridge;
+pub mod health_checker;
 
 pub use event_bridge::EventBridge;
 pub use command_dispatcher::CommandDispatcher;
+pub use command_registry::CommandRegistry;
 pub use script_bridge::ScriptBridgeServer;
 
 pub use ticker_matcher::TickerMatcher;

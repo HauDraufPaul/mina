@@ -185,8 +185,19 @@ pub fn run() {
             app.manage(script_bridge);
             
             eprintln!("MINA: Initializing DevOpsStore...");
-            let _ = DevOpsStore::new(db.conn.clone());
+            let devops_store = DevOpsStore::new(db.conn.clone());
+            if let Err(e) = devops_store.init_default_health_checks() {
+                eprintln!("WARNING: Failed to initialize default health checks: {}", e);
+            }
             eprintln!("MINA: DevOpsStore initialized");
+            
+            // Start health check monitoring
+            eprintln!("MINA: Starting health check monitoring...");
+            let db_for_health_checks = Arc::new(Mutex::new(Database {
+                conn: db.conn.clone(),
+            }));
+            crate::services::health_checker::HealthChecker::start_checking(db_for_health_checks);
+            eprintln!("MINA: Health check monitoring started");
             
             eprintln!("MINA: Initializing OSINTStore...");
             // Initialize OSINTStore - this will create default feeds if needed

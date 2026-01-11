@@ -126,3 +126,19 @@ pub fn init_default_health_checks(
     Ok(after - before)
 }
 
+#[tauri::command]
+pub async fn check_health_check(
+    name: String,
+    db: State<'_, Mutex<Database>>,
+) -> Result<(), String> {
+    let db_arc = Arc::new(Mutex::new(Database {
+        conn: {
+            let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+            db_guard.conn.clone()
+        },
+    }));
+    
+    crate::services::health_checker::HealthChecker::check_health_check(&name, &db_arc)
+        .await
+        .map_err(|e| format!("Failed to check health check: {}", e))
+}

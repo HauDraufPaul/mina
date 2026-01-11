@@ -1,4 +1,5 @@
-use crate::storage::{Database, StockNewsStore, TemporalStore};
+use crate::storage::{Database, StockNewsStore, TemporalStore, VectorStore};
+use crate::services::embeddings::EmbeddingService;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -138,9 +139,82 @@ impl GlobalSearchService {
         limit: i32,
         db: &Mutex<Database>,
     ) -> Result<Vec<SearchResult>> {
-        // Note: Vector search requires embedding generation
-        // For now, return empty - would need to integrate with embedding service
-        Ok(Vec::new())
+        // Generate embedding for the query
+        let embedding_service = EmbeddingService::new();
+        
+        // Use tokio runtime to run async embedding generation in sync context
+        let embedding = match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                // We're in an async context, use the handle
+                handle.block_on(embedding_service.generate(query))?
+            }
+            Err(_) => {
+                // We're not in an async context, create a new runtime
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
+                rt.block_on(embedding_service.generate(query))?
+            }
+        };
+
+        // Get vector store and search
+        let db_guard = db.lock().map_err(|e| anyhow::anyhow!("Database lock error: {}", e))?;
+        let vector_store = VectorStore::new(db_guard.conn.clone());
+        
+        // Search in default collection or all collections
+        // Try searching in a default collection first
+        let collections = vector_store.list_collections().unwrap_or_default();
+        
+        let mut all_results = Vec::new();
+        
+        // Search in each collection
+        for collection in collections {
+            match vector_store.search_similar(&collection, &embedding, limit, 0.5) {
+                Ok(results) => {
+                    for (doc, similarity) in results {
+                        // Extract title and snippet from content or metadata
+                        let title = doc.metadata
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_else(|| {
+                                // Use first line of content as title
+                                doc.content.lines().next().unwrap_or("Document")
+                            })
+                            .to_string();
+                        
+                        let snippet = if doc.content.len() > 200 {
+                            format!("{}...", &doc.content[..200])
+                        } else {
+                            doc.content.clone()
+                        };
+                        
+                        all_results.push(SearchResult {
+                            id: format!("vector:{}:{}", collection, doc.id),
+                            title,
+                            snippet,
+                            source: SearchSource::Vector,
+                            relevance: similarity as f64,
+                            metadata: serde_json::json!({
+                                "collection": collection,
+                                "document_id": doc.id,
+                                "created_at": doc.created_at,
+                                "metadata": doc.metadata,
+                            }),
+                        });
+                    }
+                }
+                Err(e) => {
+                    // Log error but continue with other collections
+                    eprintln!("Vector search error in collection {}: {}", collection, e);
+                }
+            }
+        }
+        
+        // Sort by relevance and limit
+        all_results.sort_by(|a, b| b.relevance.partial_cmp(&a.relevance)
+            .unwrap_or(std::cmp::Ordering::Equal));
+        all_results.truncate(limit as usize);
+        
+        Ok(all_results)
     }
 
     fn search_portfolios(

@@ -27,6 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 async-trait = "0.1"
 sha2 = "0.10"
+hmac = "0.12"
 tokio-stream = "0.1"
 notify = "6"
 rss = "2.0"
@@ -40,4 +41,5 @@ regex = "1"
 urlencoding = "2.1"
 lettre = { version = "0.11", features = ["tokio1-native-tls", "smtp-transport"] }
 cron = "0.12"
+qdrant-client = "1.7"
 

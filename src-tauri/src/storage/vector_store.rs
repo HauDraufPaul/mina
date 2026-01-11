@@ -2,6 +2,7 @@ use anyhow::Result;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use tokio::sync::RwLock;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VectorDocument {
@@ -16,15 +17,55 @@ pub struct VectorDocument {
 
 pub struct VectorStore {
     conn: Arc<Mutex<Connection>>,
+    qdrant: Option<Arc<RwLock<crate::storage::qdrant_store::QdrantStore>>>,
+    use_qdrant: bool,
 }
 
 impl VectorStore {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
-        let store = VectorStore { conn };
+        let store = VectorStore {
+            conn,
+            qdrant: None,
+            use_qdrant: false,
+        };
         if let Err(e) = store.init_schema() {
             eprintln!("WARNING: VectorStore schema initialization failed: {}", e);
         }
         store
+    }
+    
+    /// Create VectorStore with Qdrant support
+    /// qdrant_url: Qdrant server URL (default: http://localhost:6333)
+    /// qdrant_api_key: Optional API key
+    pub async fn new_with_qdrant(
+        conn: Arc<Mutex<Connection>>,
+        qdrant_url: Option<&str>,
+        qdrant_api_key: Option<&str>,
+    ) -> Result<Self> {
+        let qdrant_store = match crate::storage::qdrant_store::QdrantStore::new(qdrant_url, qdrant_api_key).await {
+            Ok(store) => {
+                eprintln!("Qdrant connection established, using Qdrant for vector operations");
+                Some(Arc::new(RwLock::new(store)))
+            }
+            Err(e) => {
+                eprintln!("WARNING: Failed to connect to Qdrant ({}), falling back to SQLite: {}", e, e);
+                None
+            }
+        };
+        
+        let use_qdrant = qdrant_store.is_some();
+        
+        let store = VectorStore {
+            conn,
+            qdrant: qdrant_store,
+            use_qdrant,
+        };
+        
+        if let Err(e) = store.init_schema() {
+            eprintln!("WARNING: VectorStore schema initialization failed: {}", e);
+        }
+        
+        Ok(store)
     }
 
     fn init_schema(&self) -> Result<()> {
@@ -68,6 +109,31 @@ impl VectorStore {
     }
 
     pub fn create_collection(&self, name: &str, dimension: i32) -> Result<()> {
+        // Try Qdrant first if available
+        if self.use_qdrant {
+            if let Some(qdrant) = &self.qdrant {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
+                let qdrant_clone = qdrant.clone();
+                if let Ok(_) = rt.block_on(async move {
+                    let mut guard = qdrant_clone.write().await;
+                    guard.create_collection(name, dimension as u64).await
+                }) {
+                    // Also create in SQLite for metadata tracking
+                    let conn = self.conn.lock()
+                        .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+                    let now = chrono::Utc::now().timestamp();
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO vector_collections (name, dimension, created_at)
+                         VALUES (?1, ?2, ?3)",
+                        params![name, dimension, now],
+                    );
+                    return Ok(());
+                }
+            }
+        }
+        
+        // Fallback to SQLite
         let conn = self.conn.lock()
             .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let now = chrono::Utc::now().timestamp();
@@ -82,6 +148,22 @@ impl VectorStore {
     }
 
     pub fn list_collections(&self) -> Result<Vec<String>> {
+        // Try Qdrant first if available
+        if self.use_qdrant {
+            if let Some(qdrant) = &self.qdrant {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
+                let qdrant_clone = qdrant.clone();
+                if let Ok(collections) = rt.block_on(async move {
+                    let guard = qdrant_clone.read().await;
+                    guard.list_collections().await
+                }) {
+                    return Ok(collections);
+                }
+            }
+        }
+        
+        // Fallback to SQLite
         let conn = self.conn.lock()
             .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
         let mut stmt = conn.prepare("SELECT name FROM vector_collections")?;
@@ -96,6 +178,48 @@ impl VectorStore {
     }
 
     pub fn insert_document(&self, doc: &VectorDocument) -> Result<()> {
+        // Try Qdrant first if available
+        if self.use_qdrant {
+            if let Some(qdrant) = &self.qdrant {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
+                let qdrant_doc = crate::storage::qdrant_store::QdrantDocument {
+                    id: doc.id.clone(),
+                    collection: doc.collection.clone(),
+                    content: doc.content.clone(),
+                    embedding: doc.embedding.clone(),
+                    metadata: doc.metadata.clone(),
+                };
+                let qdrant_clone = qdrant.clone();
+                let collection_name = doc.collection.clone();
+                if let Ok(_) = rt.block_on(async move {
+                    let mut guard = qdrant_clone.write().await;
+                    guard.insert_document(&collection_name, &qdrant_doc).await
+                }) {
+                    // Also store metadata in SQLite for tracking
+                    let conn = self.conn.lock()
+                        .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+                    let metadata_json = serde_json::to_string(&doc.metadata)?;
+                    let _ = conn.execute(
+                        "INSERT OR REPLACE INTO vector_documents 
+                         (id, collection, content, embedding, metadata, created_at, expires_at)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![
+                            doc.id,
+                            doc.collection,
+                            doc.content,
+                            "qdrant", // Mark as stored in Qdrant
+                            metadata_json,
+                            doc.created_at,
+                            doc.expires_at
+                        ],
+                    );
+                    return Ok(());
+                }
+            }
+        }
+        
+        // Fallback to SQLite
         let conn = self.conn.lock()
             .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 
@@ -128,6 +252,44 @@ impl VectorStore {
         limit: i32,
         min_similarity: f32,
     ) -> Result<Vec<(VectorDocument, f32)>> {
+        // Try Qdrant first if available
+        if self.use_qdrant {
+            if let Some(qdrant) = &self.qdrant {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
+                let qdrant_clone = qdrant.clone();
+                let collection_name = collection.to_string();
+                let query_embedding_vec = query_embedding.to_vec();
+                if let Ok(qdrant_results) = rt.block_on(async move {
+                    let guard = qdrant_clone.read().await;
+                    guard.search_similar(
+                        &collection_name,
+                        &query_embedding_vec,
+                        limit as u64,
+                        Some(min_similarity),
+                    ).await
+                }) {
+                    // Convert QdrantDocument to VectorDocument
+                    let results: Vec<(VectorDocument, f32)> = qdrant_results
+                        .into_iter()
+                        .map(|(qdrant_doc, score)| {
+                            (VectorDocument {
+                                id: qdrant_doc.id,
+                                collection: qdrant_doc.collection,
+                                content: qdrant_doc.content,
+                                embedding: qdrant_doc.embedding,
+                                metadata: qdrant_doc.metadata,
+                                created_at: chrono::Utc::now().timestamp(),
+                                expires_at: None,
+                            }, score)
+                        })
+                        .collect();
+                    return Ok(results);
+                }
+            }
+        }
+        
+        // Fallback to SQLite
         let conn = self.conn.lock()
             .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
 

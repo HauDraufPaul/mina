@@ -2,6 +2,7 @@ pub mod database;
 pub mod migrations;
 pub mod auth;
 pub mod vector_store;
+pub mod qdrant_store;
 pub mod analytics;
 pub mod rate_limit;
 pub mod migration_tracking;
