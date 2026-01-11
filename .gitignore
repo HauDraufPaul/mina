@@ -50,6 +50,13 @@ Thumbs.db
 *.md
 **/*.md
 
+# Exception: Allow README.md (project documentation)
+!README.md
+!**/README.md
+# Exception: Allow Docusaurus documentation markdown files
+!docs/docs/
+!docs/docs/**
+!docs/docs/**/*.md
 # LaTeX files
 LaTeX/
 *.tex
