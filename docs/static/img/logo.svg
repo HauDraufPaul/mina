@@ -1,4 +1,1 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="4" fill="#00ffff" opacity="0.2"/>
-  <text x="16" y="22" font-family="monospace" font-size="16" font-weight="bold" fill="#00ffff" text-anchor="middle">M</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 32 32"><rect width="32" height="32" fill="#0ff" opacity=".2" rx="4"/><text x="16" y="22" fill="#0ff" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle">M</text></svg>
