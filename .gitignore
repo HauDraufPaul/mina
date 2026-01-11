@@ -48,6 +48,7 @@ Thumbs.db
 
 # Instructions and documentation (no AI stuff on GitHub)
 *.md
+**/*.md
 
 # LaTeX files
 LaTeX/
@@ -63,7 +64,11 @@ LaTeX/
 *plan*
 *CURSOR*
 *cursor*
+**/*cursor*
+**/*CURSOR*
+*.cursor
+*.CURSOR
 
 # Planning folder
-planung/
-planung/**
+/planung/
+planung
