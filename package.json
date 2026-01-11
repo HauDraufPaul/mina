@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run docs:build && vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "npm run docs:build && tauri dev",
     "tauri:build": "npm run docs:build && tauri build",
     "test": "vitest",
     "test:e2e": "playwright test",

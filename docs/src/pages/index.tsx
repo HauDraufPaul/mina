@@ -18,7 +18,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            to="/docs/intro">
+            to="/intro">
             Get Started - 5min ⏱️
           </Link>
         </div>
@@ -44,7 +44,7 @@ export default function Home(): JSX.Element {
                 </div>
                 <div className="card__body">
                   <p>Get up and running with MINA in minutes. Learn the basics and start automating.</p>
-                  <Link to="/docs/getting-started/overview">Get Started →</Link>
+                  <Link to="/getting-started/overview">Get Started →</Link>
                 </div>
               </div>
             </div>
@@ -55,7 +55,7 @@ export default function Home(): JSX.Element {
                 </div>
                 <div className="card__body">
                   <p>Create scripts and workflows to automate tasks. Learn how to build powerful automations.</p>
-                  <Link to="/docs/modules/automation-circuit">Learn More →</Link>
+                  <Link to="/modules/automation-circuit">Learn More →</Link>
                 </div>
               </div>
             </div>
@@ -66,7 +66,7 @@ export default function Home(): JSX.Element {
                 </div>
                 <div className="card__body">
                   <p>Monitor markets, track portfolios, and analyze data with MINA's intelligence features.</p>
-                  <Link to="/docs/modules/market-intelligence">Explore →</Link>
+                  <Link to="/modules/market-intelligence">Explore →</Link>
                 </div>
               </div>
             </div>

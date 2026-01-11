@@ -91,8 +91,7 @@ function App() {
             <Route path="/chart-studio" element={<ChartStudio />} />
             <Route path="/messaging" element={<MessagingHub />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />
-            <Route path="/docs" element={<DocumentationViewer />} />
-            <Route path="/docs/:pageId" element={<DocumentationViewer />} />
+            <Route path="/docs/*" element={<DocumentationViewer />} />
           </Routes>
         </Layout>
       </BrowserRouter>

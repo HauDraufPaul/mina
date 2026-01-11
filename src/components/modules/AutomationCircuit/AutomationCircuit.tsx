@@ -365,7 +365,7 @@ export default function AutomationCircuit() {
 • Use variables to pass data between steps`,
       },
     ],
-    linkToDocs: "/docs/automation-circuit",
+    linkToDocs: "/docs/modules/automation-circuit",
   };
 
   if (loading) {

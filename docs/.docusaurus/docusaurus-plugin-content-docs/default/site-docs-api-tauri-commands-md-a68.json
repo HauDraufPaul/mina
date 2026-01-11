@@ -1,0 +1,26 @@
+{
+  "id": "api/tauri-commands",
+  "title": "Tauri Commands API Reference",
+  "description": "MINA exposes various Tauri commands for backend functionality. These can be called from the frontend using invoke().",
+  "source": "@site/docs/api/tauri-commands.md",
+  "sourceDirName": "api",
+  "slug": "/api/tauri-commands",
+  "permalink": "/docs/docs/api/tauri-commands",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Market Intelligence",
+    "permalink": "/docs/docs/modules/market-intelligence"
+  },
+  "next": {
+    "title": "WebSocket Events",
+    "permalink": "/docs/docs/api/websocket-events"
+  }
+}

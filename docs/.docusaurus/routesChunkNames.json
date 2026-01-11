@@ -1,0 +1,62 @@
+{
+  "/docs/docs-be6": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/docs/docs-0e5": {
+    "__comp": "a7bd4aaa",
+    "__props": "a2065270"
+  },
+  "/docs/docs-bf4": {
+    "__comp": "a94703ab"
+  },
+  "/docs/docs/api/tauri-commands-7a4": {
+    "__comp": "17896441",
+    "content": "a68f17a3"
+  },
+  "/docs/docs/api/websocket-events-65c": {
+    "__comp": "17896441",
+    "content": "d972ab03"
+  },
+  "/docs/docs/getting-started/overview-dcb": {
+    "__comp": "17896441",
+    "content": "7a96ca3d"
+  },
+  "/docs/docs/getting-started/quick-start-638": {
+    "__comp": "17896441",
+    "content": "588bd741"
+  },
+  "/docs/docs/guides/scripts-9f2": {
+    "__comp": "17896441",
+    "content": "11ff2956"
+  },
+  "/docs/docs/guides/workflows-0e7": {
+    "__comp": "17896441",
+    "content": "174d028f"
+  },
+  "/docs/docs/intro-2ea": {
+    "__comp": "17896441",
+    "content": "0e384e19"
+  },
+  "/docs/docs/modules/automation-circuit-58c": {
+    "__comp": "17896441",
+    "content": "5049b69d"
+  },
+  "/docs/docs/modules/market-intelligence-51c": {
+    "__comp": "17896441",
+    "content": "3fd8ff96"
+  },
+  "/docs/docs/modules/system-monitor-6ec": {
+    "__comp": "17896441",
+    "content": "4beb3640"
+  },
+  "/docs/-2a6": {
+    "__comp": "1df93b7f",
+    "__context": {
+      "plugin": "a7456010"
+    },
+    "config": "5e9f5e1a"
+  }
+}

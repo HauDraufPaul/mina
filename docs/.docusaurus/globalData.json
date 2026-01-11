@@ -1,0 +1,78 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/docs/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/docs/docs",
+          "mainDocId": "intro",
+          "docs": [
+            {
+              "id": "api/tauri-commands",
+              "path": "/docs/docs/api/tauri-commands",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "api/websocket-events",
+              "path": "/docs/docs/api/websocket-events",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "getting-started/overview",
+              "path": "/docs/docs/getting-started/overview",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "getting-started/quick-start",
+              "path": "/docs/docs/getting-started/quick-start",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "guides/scripts",
+              "path": "/docs/docs/guides/scripts",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "guides/workflows",
+              "path": "/docs/docs/guides/workflows",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "intro",
+              "path": "/docs/docs/intro",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "modules/automation-circuit",
+              "path": "/docs/docs/modules/automation-circuit",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "modules/market-intelligence",
+              "path": "/docs/docs/modules/market-intelligence",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "modules/system-monitor",
+              "path": "/docs/docs/modules/system-monitor",
+              "sidebar": "tutorialSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "tutorialSidebar": {
+              "link": {
+                "path": "/docs/docs/intro",
+                "label": "intro"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

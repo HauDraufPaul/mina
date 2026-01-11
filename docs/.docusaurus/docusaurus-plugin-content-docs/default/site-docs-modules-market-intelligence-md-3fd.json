@@ -1,0 +1,26 @@
+{
+  "id": "modules/market-intelligence",
+  "title": "Market Intelligence",
+  "description": "Comprehensive market data, news, and analysis tools for financial intelligence.",
+  "source": "@site/docs/modules/market-intelligence.md",
+  "sourceDirName": "modules",
+  "slug": "/modules/market-intelligence",
+  "permalink": "/docs/docs/modules/market-intelligence",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "System Monitor",
+    "permalink": "/docs/docs/modules/system-monitor"
+  },
+  "next": {
+    "title": "Tauri Commands API Reference",
+    "permalink": "/docs/docs/api/tauri-commands"
+  }
+}

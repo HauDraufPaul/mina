@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import Modal from "./Modal";
 import Button from "./Button";
 import { ExternalLink, Book } from "lucide-react";
@@ -10,6 +11,8 @@ interface HelpModalProps {
 }
 
 export default function HelpModal({ isOpen, onClose, content }: HelpModalProps) {
+  const navigate = useNavigate();
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={content.title}>
       <div className="space-y-6">
@@ -28,16 +31,17 @@ export default function HelpModal({ isOpen, onClose, content }: HelpModalProps) 
         
         {content.linkToDocs && (
           <div className="pt-4 border-t border-white/10">
-            <a
-              href={content.linkToDocs}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-neon-cyan hover:text-neon-cyan/80 transition-colors"
+            <button
+              onClick={() => {
+                navigate(content.linkToDocs!);
+                onClose();
+              }}
+              className="inline-flex items-center gap-2 text-neon-cyan hover:text-neon-cyan/80 transition-colors cursor-pointer"
             >
               <Book className="w-4 h-4" />
               <span>View full documentation</span>
               <ExternalLink className="w-4 h-4" />
-            </a>
+            </button>
           </div>
         )}
       </div>

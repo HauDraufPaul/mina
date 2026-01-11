@@ -1,0 +1,26 @@
+{
+  "id": "modules/automation-circuit",
+  "title": "Automation Circuit",
+  "description": "Automation Circuit is MINA's workflow and script automation system. It allows you to create reusable scripts and complex workflows to automate tasks across your system.",
+  "source": "@site/docs/modules/automation-circuit.md",
+  "sourceDirName": "modules",
+  "slug": "/modules/automation-circuit",
+  "permalink": "/docs/docs/modules/automation-circuit",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Quick Start Guide",
+    "permalink": "/docs/docs/getting-started/quick-start"
+  },
+  "next": {
+    "title": "System Monitor",
+    "permalink": "/docs/docs/modules/system-monitor"
+  }
+}

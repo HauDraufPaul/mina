@@ -1,0 +1,26 @@
+{
+  "id": "getting-started/overview",
+  "title": "Getting Started Overview",
+  "description": "Welcome to MINA! This guide will help you get up and running quickly.",
+  "source": "@site/docs/getting-started/overview.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/overview",
+  "permalink": "/docs/docs/getting-started/overview",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Welcome to MINA",
+    "permalink": "/docs/docs/intro"
+  },
+  "next": {
+    "title": "Quick Start Guide",
+    "permalink": "/docs/docs/getting-started/quick-start"
+  }
+}

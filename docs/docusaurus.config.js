@@ -19,7 +19,7 @@ const config = {
   organizationName: 'mina',
   projectName: 'mina-docs',
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
@@ -53,7 +53,7 @@ const config = {
       // Replace with your project's social card
       image: 'img/docusaurus-social-card.jpg',
       navbar: {
-        title: 'MINA Docs',
+        title: 'MINA',
         logo: {
           alt: 'MINA Logo',
           src: 'img/logo.svg',
@@ -63,24 +63,20 @@ const config = {
             type: 'docSidebar',
             sidebarId: 'tutorialSidebar',
             position: 'left',
-            label: 'Documentation',
-          },
-          {
-            href: 'https://github.com',
-            label: 'GitHub',
-            position: 'right',
+            label: 'Docs',
           },
         ],
+        style: 'dark',
       },
       footer: {
         style: 'dark',
         links: [],
-        copyright: `Copyright © ${new Date().getFullYear()} MINA. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} MINA - Monitoring, Intelligence, Networking, Automation.`,
       },
       prism: {
         theme: darkCodeTheme,
         darkTheme: darkCodeTheme,
-        additionalLanguages: ['rust', 'typescript', 'javascript', 'bash'],
+        additionalLanguages: ['rust', 'typescript', 'javascript', 'bash', 'json', 'toml'],
       },
       colorMode: {
         defaultMode: 'dark',

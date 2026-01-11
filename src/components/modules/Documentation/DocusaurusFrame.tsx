@@ -14,15 +14,25 @@ export default function DocusaurusFrame({ path }: DocusaurusFrameProps) {
 
   // Determine the Docusaurus URL based on environment
   const getDocsUrl = () => {
-    // In development, Docusaurus runs on port 3000
-    if (import.meta.env.DEV) {
-      const docusaurusPath = path || location.pathname.replace("/docs", "") || "/";
-      return `http://localhost:3000/docs${docusaurusPath}`;
+    // Get the path from location or prop
+    let docusaurusPath = path;
+    if (!docusaurusPath) {
+      // Extract path from location, removing /docs prefix
+      docusaurusPath = location.pathname.replace(/^\/docs/, "") || "/";
     }
     
-    // In production, serve from built static files
-    // Docusaurus build output should be in dist/docs/
-    const docusaurusPath = path || location.pathname.replace("/docs", "") || "/";
+    // Ensure path starts with / and doesn't end with / (except root)
+    if (docusaurusPath !== "/" && !docusaurusPath.endsWith("/")) {
+      docusaurusPath = docusaurusPath + "/";
+    }
+    if (!docusaurusPath.startsWith("/")) {
+      docusaurusPath = "/" + docusaurusPath;
+    }
+    
+    // Always serve from built static files (both dev and production)
+    // Docusaurus build output is in dist/docs/
+    // Docusaurus uses /docs/ as baseUrl, so paths are relative to that
+    // Vite will serve these files from the public/dist or dist directory
     return `/docs${docusaurusPath}`;
   };
 
@@ -37,16 +47,25 @@ export default function DocusaurusFrame({ path }: DocusaurusFrameProps) {
 
     const handleError = () => {
       setLoading(false);
-      setError("Failed to load documentation. Make sure Docusaurus is running in development mode.");
+      setError("Documentation not found. Make sure docs are built: npm run docs:build");
     };
+
+    // Set timeout for loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        setError("Documentation is taking too long to load. Check if Docusaurus is running.");
+      }
+    }, 10000);
 
     iframe.addEventListener("load", handleLoad);
     iframe.addEventListener("error", handleError);
 
     // Set the source
-    iframe.src = getDocsUrl();
+    const docsUrl = getDocsUrl();
+    iframe.src = docsUrl;
 
     return () => {
+      clearTimeout(timeout);
       iframe.removeEventListener("load", handleLoad);
       iframe.removeEventListener("error", handleError);
     };
@@ -58,7 +77,7 @@ export default function DocusaurusFrame({ path }: DocusaurusFrameProps) {
         <div className="p-8 text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <p className="text-gray-400 text-sm">
-            In development, run <code className="bg-white/5 px-2 py-1 rounded">npm run docs:dev</code> to start Docusaurus
+            Run <code className="bg-white/5 px-2 py-1 rounded">npm run docs:build</code> to build documentation
           </p>
         </div>
       </Card>

@@ -11,7 +11,12 @@ export default function DocumentationViewer() {
   
   // Extract the path from the current route
   // /docs -> /, /docs/modules/automation-circuit -> /modules/automation-circuit
-  const docusaurusPath = location.pathname.replace("/docs", "") || "/";
+  let docusaurusPath = location.pathname.replace(/^\/docs/, "") || "/";
+  
+  // Docusaurus expects paths without trailing slashes (except root)
+  if (docusaurusPath !== "/" && docusaurusPath.endsWith("/")) {
+    docusaurusPath = docusaurusPath.slice(0, -1);
+  }
 
   return (
     <div className="w-full h-full">

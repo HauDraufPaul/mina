@@ -1,0 +1,26 @@
+{
+  "id": "modules/system-monitor",
+  "title": "System Monitor",
+  "description": "Monitor your system's performance in real-time with comprehensive metrics and process management.",
+  "source": "@site/docs/modules/system-monitor.md",
+  "sourceDirName": "modules",
+  "slug": "/modules/system-monitor",
+  "permalink": "/docs/docs/modules/system-monitor",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2
+  },
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Automation Circuit",
+    "permalink": "/docs/docs/modules/automation-circuit"
+  },
+  "next": {
+    "title": "Market Intelligence",
+    "permalink": "/docs/docs/modules/market-intelligence"
+  }
+}
