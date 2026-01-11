@@ -1,6 +1,6 @@
 use crate::storage::devops::DevOpsStore;
 use crate::storage::Database;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 #[tauri::command]
@@ -124,6 +124,33 @@ pub fn init_default_health_checks(
         .len();
     
     Ok(after - before)
+}
+
+#[tauri::command]
+pub fn fix_health_check_urls(
+    db: State<'_, Mutex<Database>>,
+) -> Result<usize, String> {
+    let db_guard = db.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    let conn = db_guard.conn.lock()
+        .map_err(|e| format!("Database lock error: {}", e))?;
+    
+    // Update Database health check URL if it's using the old format
+    let db_updated = conn.execute(
+        "UPDATE health_checks 
+         SET url = 'http://127.0.0.1:5433/health/database'
+         WHERE name = 'Database' AND url LIKE '%:5432%'",
+        [],
+    ).map_err(|e| format!("Failed to update Database URL: {}", e))?;
+
+    // Update Redis health check URL if it's using the old format
+    let redis_updated = conn.execute(
+        "UPDATE health_checks 
+         SET url = 'http://127.0.0.1:5433/health/redis'
+         WHERE name = 'Redis' AND url LIKE '%:6379%'",
+        [],
+    ).map_err(|e| format!("Failed to update Redis URL: {}", e))?;
+
+    Ok((db_updated + redis_updated) as usize)
 }
 
 #[tauri::command]

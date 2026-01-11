@@ -46,9 +46,20 @@ impl DevOpsStore {
         store
     }
 
+    /// Safely lock the database connection, recovering from poisoned locks
+    fn lock_conn(&self) -> Result<MutexGuard<'_, Connection>> {
+        match self.conn.lock() {
+            Ok(guard) => Ok(guard),
+            Err(err) => {
+                eprintln!("WARNING: Database lock was poisoned, recovering...");
+                // Extract the guard from the PoisonError - it's still valid
+                Ok(err.into_inner())
+            }
+        }
+    }
+
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock()
-            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        let conn = self.lock_conn()?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS health_checks (
@@ -145,6 +156,12 @@ impl DevOpsStore {
 
     // Private helper that works with an already-locked connection
     fn init_default_health_checks_with_conn(&self, conn: &MutexGuard<Connection>) -> Result<()> {
+        // Always migrate existing health checks with old URLs to new ones
+        // This ensures existing health checks get updated even if they already exist
+        if let Err(e) = self.migrate_health_check_urls_with_conn(conn) {
+            eprintln!("WARNING: Failed to migrate health check URLs: {}", e);
+        }
+        
         // Check if any health checks exist
         let count: i64 = match conn.query_row(
             "SELECT COUNT(*) FROM health_checks",
@@ -160,11 +177,13 @@ impl DevOpsStore {
             eprintln!("MINA: Adding default health checks...");
             let now = chrono::Utc::now().timestamp();
             
+            // Default health checks - all HTTP endpoints
+            // Database and Redis are checked via the MINA health check service which wraps their native protocols
             let default_checks = vec![
                 ("Localhost", "http://localhost:3000/health"),
                 ("API Server", "http://localhost:8080/health"),
-                ("Database", "http://localhost:5432/health"),
-                ("Redis", "http://localhost:6379/health"),
+                ("Database", "http://127.0.0.1:5433/health/database"),
+                ("Redis", "http://127.0.0.1:5433/health/redis"),
                 ("Elasticsearch", "http://localhost:9200/_cluster/health"),
             ];
 
@@ -181,6 +200,27 @@ impl DevOpsStore {
             }
             eprintln!("MINA: Default health checks initialization complete");
         }
+
+        Ok(())
+    }
+
+    /// Migrate health check URLs from old format to new format
+    fn migrate_health_check_urls_with_conn(&self, conn: &MutexGuard<Connection>) -> Result<()> {
+        // Update Database health check URL if it's using the old format
+        conn.execute(
+            "UPDATE health_checks 
+             SET url = 'http://127.0.0.1:5433/health/database'
+             WHERE name = 'Database' AND url LIKE '%:5432%'",
+            [],
+        )?;
+
+        // Update Redis health check URL if it's using the old format
+        conn.execute(
+            "UPDATE health_checks 
+             SET url = 'http://127.0.0.1:5433/health/redis'
+             WHERE name = 'Redis' AND url LIKE '%:6379%'",
+            [],
+        )?;
 
         Ok(())
     }

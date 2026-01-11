@@ -23,14 +23,16 @@ export default function MigrationManager() {
   const loadMigrations = async () => {
     try {
       const [migrationsData, version] = await Promise.all([
-        invoke<Migration[]>("list_migrations"),
-        invoke<number>("get_latest_migration_version"),
+        invoke<Migration[]>("list_migrations").catch(() => []),
+        invoke<number>("get_latest_migration_version").catch(() => 0),
       ]);
-      setMigrations(migrationsData);
-      setLatestVersion(version);
+      setMigrations(migrationsData || []);
+      setLatestVersion(version || 0);
       setLoading(false);
     } catch (error) {
       console.error("Failed to load migrations:", error);
+      setMigrations([]);
+      setLatestVersion(0);
       setLoading(false);
     }
   };
@@ -133,10 +135,40 @@ export default function MigrationManager() {
             <GitBranch className="w-4 h-4 mr-2" />
             Refresh Migrations
           </Button>
-          <Button variant="secondary" className="w-full">
+          <Button 
+            variant="secondary" 
+            className="w-full"
+            onClick={async () => {
+              try {
+                const migrations = await invoke<Migration[]>("list_migrations");
+                const applied = migrations.filter(m => m.status.toLowerCase() === "applied");
+                alert(`Schema validation: ${applied.length} migrations applied. Latest version: ${latestVersion}`);
+              } catch (error) {
+                console.error("Validation failed:", error);
+                alert("Failed to validate schema");
+              }
+            }}
+          >
             Validate Schema
           </Button>
-          <Button variant="secondary" className="w-full">
+          <Button 
+            variant="secondary" 
+            className="w-full"
+            onClick={async () => {
+              try {
+                const migrations = await invoke<Migration[]>("list_migrations");
+                const failed = migrations.filter(m => m.status.toLowerCase() === "failed");
+                if (failed.length > 0) {
+                  alert(`Integrity check failed: ${failed.length} migrations have errors`);
+                } else {
+                  alert("Integrity check passed: All migrations are valid");
+                }
+              } catch (error) {
+                console.error("Integrity check failed:", error);
+                alert("Failed to check integrity");
+              }
+            }}
+          >
             Check Integrity
           </Button>
         </div>

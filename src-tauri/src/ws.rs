@@ -117,6 +117,20 @@ impl WsServer {
                         let msg = WsMessage::SystemMetrics(system_metrics.clone());
                         let _ = tx.send(msg.clone());
 
+                        // Save metrics to analytics store
+                        if let Some(db_guard) = app_handle.try_state::<std::sync::Mutex<crate::storage::Database>>() {
+                            if let Ok(db) = db_guard.try_lock() {
+                                let analytics_store = crate::storage::AnalyticsStore::new(db.conn.clone());
+                                // Save each metric type
+                                let _ = analytics_store.save_metric("cpu", cpu_usage, None);
+                                let _ = analytics_store.save_metric("memory", memory_usage, None);
+                                let _ = analytics_store.save_metric("disk", disk_usage, None);
+                                // Network traffic as combined metric (rx + tx speed)
+                                let network_total = rx_speed + tx_speed;
+                                let _ = analytics_store.save_metric("network", network_total, None);
+                            }
+                        }
+
                         // Emit Tauri event for frontend
                         let _ = app_handle.emit("ws-message", serde_json::json!({
                             "type": "system-metrics",

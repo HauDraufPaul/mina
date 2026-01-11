@@ -8,6 +8,7 @@ import { useErrorHandler } from "@/utils/errorHandler";
 interface ConfigEntry {
   key: string;
   value: string;
+  description?: string;
 }
 
 export default function ConfigurationManager() {
@@ -20,28 +21,27 @@ export default function ConfigurationManager() {
   const loadConfigs = async () => {
     setLoading(true);
     try {
-      // Load common configuration keys
-      const keys = [
-        "ws_addr",
-        "log_level",
-        "neo4j_uri",
-        "neo4j_user",
-        "neo4j_password",
-        "openai_api_key",
-        "anthropic_api_key",
+      // Load common configuration keys with descriptions
+      const configKeys = [
+        { key: "ws_addr", description: "WebSocket server address" },
+        { key: "log_level", description: "Logging level (debug, info, warn, error)" },
+        { key: "neo4j_uri", description: "Neo4j database URI" },
+        { key: "neo4j_user", description: "Neo4j username" },
+        { key: "neo4j_password", description: "Neo4j password (hidden)" },
+        { key: "openai_api_key", description: "OpenAI API key (hidden)" },
+        { key: "anthropic_api_key", description: "Anthropic API key (hidden)" },
+        { key: "database_url", description: "PostgreSQL database URL" },
+        { key: "redis_url", description: "Redis connection URL" },
+        { key: "elasticsearch_url", description: "Elasticsearch server URL" },
       ];
 
       const loaded: ConfigEntry[] = [];
-      for (const key of keys) {
+      for (const { key } of configKeys) {
         try {
           const value = await invoke<string | null>("get_config", { key });
-          if (value !== null) {
-            loaded.push({ key, value });
-          } else {
-            loaded.push({ key, value: "" });
-          }
+          loaded.push({ key, value: value || "" });
         } catch (error) {
-          errorHandler.showError(`Failed to load config ${key}`, error);
+          console.error(`Failed to load config ${key}:`, error);
           loaded.push({ key, value: "" });
         }
       }

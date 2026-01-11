@@ -32,6 +32,7 @@ import EconomicCalendar from "./components/modules/EconomicCalendar/EconomicCale
 import ChartStudio from "./components/modules/ChartStudio/ChartStudio";
 import MessagingHub from "./components/modules/Messaging/MessagingHub";
 import SentimentAnalysis from "./components/modules/SentimentAnalysis/SentimentAnalysis";
+import DocumentationViewer from "./components/modules/Documentation/DocumentationViewer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,6 +91,8 @@ function App() {
             <Route path="/chart-studio" element={<ChartStudio />} />
             <Route path="/messaging" element={<MessagingHub />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />
+            <Route path="/docs" element={<DocumentationViewer />} />
+            <Route path="/docs/:pageId" element={<DocumentationViewer />} />
           </Routes>
         </Layout>
       </BrowserRouter>

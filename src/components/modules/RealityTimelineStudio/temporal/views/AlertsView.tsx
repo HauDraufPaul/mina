@@ -65,8 +65,13 @@ export default function AlertsView() {
         invoke<AlertRule[]>("temporal_list_alert_rules"),
         invoke<Alert[]>("temporal_list_alerts", { limit: 200 }),
       ]);
-      setRules(r);
-      setAlerts(a);
+      setRules(r || []);
+      setAlerts(a || []);
+    } catch (err) {
+      console.error("Failed to load alerts:", err);
+      setRules([]);
+      setAlerts([]);
+      errorHandler.showError("Failed to load alerts", err);
     } finally {
       setLoading(false);
     }

@@ -8,6 +8,7 @@ import { useErrorHandler, validateInput } from "@/utils/errorHandler";
 import { Code, Play, Save, List, Workflow, Clock, CheckCircle, XCircle, Plus, Edit } from "lucide-react";
 import WorkflowEditor from "./WorkflowEditor";
 import { realtimeService } from "@/services/realtimeService";
+import HelpButton, { HelpContent } from "../../ui/HelpButton";
 
 interface Script {
   id: number;
@@ -322,6 +323,51 @@ export default function AutomationCircuit() {
     return new Date(timestamp * 1000).toLocaleString();
   };
 
+  const helpContent: HelpContent = {
+    title: "Automation Circuit Guide",
+    sections: [
+      {
+        heading: "Overview",
+        content: "Automation Circuit allows you to create and manage scripts and workflows to automate tasks in MINA. Scripts are executable code snippets, while workflows are sequences of steps that can include scripts, conditions, and other actions.",
+      },
+      {
+        heading: "Scripts",
+        content: `Scripts are code snippets that can be executed on demand. You can:
+• Create scripts in JavaScript or TypeScript
+• Execute scripts manually or as part of workflows
+• View execution results and output
+• Enable/disable scripts to control when they can run`,
+      },
+      {
+        heading: "Workflows",
+        content: `Workflows are sequences of steps that automate complex tasks. You can:
+• Create workflows with multiple steps
+• Use different step types: ExecuteScript, CallCommand, Condition, Wait, SendAlert, SetVariable, Loop
+• Configure triggers (manual, scheduled, event-based)
+• Monitor workflow executions in real-time`,
+      },
+      {
+        heading: "Step Types",
+        content: `• ExecuteScript: Run a script with optional inputs
+• CallCommand: Execute a system command
+• Condition: Branch based on conditions
+• Wait: Pause execution for a specified duration
+• SendAlert: Send notifications or alerts
+• SetVariable: Store values for later use
+• Loop: Iterate over items`,
+      },
+      {
+        heading: "Best Practices",
+        content: `• Keep scripts focused and reusable
+• Use workflows for complex multi-step processes
+• Test scripts before adding them to workflows
+• Monitor execution logs for debugging
+• Use variables to pass data between steps`,
+      },
+    ],
+    linkToDocs: "/docs/automation-circuit",
+  };
+
   if (loading) {
     return <div className="text-center">Loading...</div>;
   }
@@ -329,11 +375,14 @@ export default function AutomationCircuit() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2 phosphor-glow-cyan">
-            Automation Circuit
-          </h1>
-          <p className="text-gray-400">Script and workflow automation</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 phosphor-glow-cyan">
+              Automation Circuit
+            </h1>
+            <p className="text-gray-400">Script and workflow automation</p>
+          </div>
+          <HelpButton content={helpContent} />
         </div>
         <Tabs
           items={[

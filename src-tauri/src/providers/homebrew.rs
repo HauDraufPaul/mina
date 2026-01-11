@@ -27,10 +27,36 @@ impl HomebrewProvider {
     }
 
     pub fn is_available() -> bool {
-        std::process::Command::new("brew")
-            .arg("--version")
-            .output()
-            .is_ok()
+        // In release builds, PATH might not include Homebrew locations
+        // Try common Homebrew paths
+        let brew_paths = vec![
+            "/opt/homebrew/bin/brew",  // Apple Silicon
+            "/usr/local/bin/brew",      // Intel Mac
+            "brew",                     // Fallback to PATH
+        ];
+        
+        for brew_path in brew_paths {
+            if std::process::Command::new(brew_path)
+                .arg("--version")
+                .output()
+                .is_ok() {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn get_brew_path() -> String {
+        // Try common Homebrew paths
+        for brew_path in &["/opt/homebrew/bin/brew", "/usr/local/bin/brew", "brew"] {
+            if std::process::Command::new(brew_path)
+                .arg("--version")
+                .output()
+                .is_ok() {
+                return brew_path.to_string();
+            }
+        }
+        "brew".to_string() // Fallback
     }
 
     pub async fn list_installed(&self) -> Result<Vec<HomebrewPackage>, String> {
@@ -38,7 +64,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["list", "--versions"])
             .output()
             .await
@@ -77,7 +104,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["outdated"])
             .output()
             .await
@@ -101,7 +129,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["deps", "--installed", package])
             .output()
             .await
@@ -125,7 +154,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["services", "list"])
             .output()
             .await
@@ -163,7 +193,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["services", "start", service])
             .output()
             .await
@@ -184,7 +215,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["services", "stop", service])
             .output()
             .await
@@ -205,7 +237,8 @@ impl HomebrewProvider {
             return Err("Homebrew is not installed".to_string());
         }
 
-        let output = match Command::new("brew")
+        let brew_path = Self::get_brew_path();
+        let output = match Command::new(&brew_path)
             .args(&["--cache"])
             .output()
             .await

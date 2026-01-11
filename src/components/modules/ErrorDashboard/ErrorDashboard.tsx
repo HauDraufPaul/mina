@@ -21,11 +21,12 @@ export default function ErrorDashboard() {
   useEffect(() => {
     const fetchErrors = async () => {
       try {
-        const data = await invoke<ErrorRecord[]>("get_recent_errors", { limit: 50 });
-        setErrors(data);
+        const data = await invoke<ErrorRecord[]>("get_recent_errors", { limit: 50 }).catch(() => []);
+        setErrors(data || []);
         setLoading(false);
       } catch (error) {
         console.error("Failed to fetch errors:", error);
+        setErrors([]);
         setLoading(false);
       }
     };

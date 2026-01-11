@@ -9,9 +9,12 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "npm run docs:build && tauri build",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "docs:dev": "cd docs && npm start",
+    "docs:build": "cd docs && npm run build",
+    "docs:serve": "cd docs && npm run serve"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.56.2",
@@ -34,6 +37,9 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
+    "@docusaurus/theme-classic": "^3.9.2",
     "@playwright/test": "^1.45.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^18.3.5",

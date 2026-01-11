@@ -12,14 +12,16 @@ export default function WebSocketMonitor() {
     const fetchData = async () => {
       try {
         const [count, topicList] = await Promise.all([
-          invoke<number>("get_ws_connection_count"),
-          invoke<string[]>("get_ws_topics"),
+          invoke<number>("get_ws_connection_count").catch(() => 0),
+          invoke<string[]>("get_ws_topics").catch(() => []),
         ]);
-        setConnectionCount(count);
-        setTopics(topicList);
+        setConnectionCount(count || 0);
+        setTopics(topicList || []);
         setLoading(false);
       } catch (error) {
         console.error("Failed to fetch WebSocket data:", error);
+        setConnectionCount(0);
+        setTopics([]);
         setLoading(false);
       }
     };

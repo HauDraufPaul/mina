@@ -30,6 +30,7 @@ import {
   TrendingUp,
   DollarSign,
   Calendar,
+  Book,
 } from "lucide-react";
 
 interface MenuItem {
@@ -80,18 +81,11 @@ const menuStructure: MenuEntry[] = [
     ],
   },
   {
-    id: "temporal-engine",
-    label: "TEMPORAL ENGINE",
+    id: "intelligence",
+    label: "INTELLIGENCE",
     icon: Gauge,
     items: [
       { path: "/reality", icon: Clock, label: "Reality & Timeline" },
-    ],
-  },
-  {
-    id: "market-intelligence",
-    label: "MARKET INTELLIGENCE",
-    icon: Gauge,
-    items: [
       { path: "/stock-news", icon: Newspaper, label: "Stock News" },
       { path: "/market-data", icon: TrendingUp, label: "Market Data" },
       { path: "/portfolio", icon: DollarSign, label: "Portfolio" },
@@ -99,6 +93,14 @@ const menuStructure: MenuEntry[] = [
       { path: "/chart-studio", icon: BarChart3, label: "Chart Studio" },
       { path: "/messaging", icon: Radio, label: "Messaging" },
       { path: "/sentiment", icon: TrendingUp, label: "Sentiment Analysis" },
+    ],
+  },
+  {
+    id: "documentation",
+    label: "DOCUMENTATION",
+    icon: Book,
+    items: [
+      { path: "/docs", icon: Book, label: "Documentation" },
     ],
   },
 ];

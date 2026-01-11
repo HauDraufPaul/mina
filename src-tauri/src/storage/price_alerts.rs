@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceAlert {
@@ -30,9 +30,20 @@ impl PriceAlertStore {
         store
     }
 
+    /// Safely lock the database connection, recovering from poisoned locks
+    fn lock_conn(&self) -> Result<MutexGuard<'_, Connection>> {
+        match self.conn.lock() {
+            Ok(guard) => Ok(guard),
+            Err(err) => {
+                eprintln!("WARNING: Database lock was poisoned, recovering...");
+                // Extract the guard from the PoisonError - it's still valid
+                Ok(err.into_inner())
+            }
+        }
+    }
+
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock()
-            .map_err(|e| anyhow::anyhow!("Database lock poisoned: {}", e))?;
+        let conn = self.lock_conn()?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS price_alerts (

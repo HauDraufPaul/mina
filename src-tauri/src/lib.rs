@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::Manager;
-use anyhow::Context;
 
 mod storage;
 mod providers;
@@ -127,6 +126,18 @@ pub fn run() {
             let _ = AnalyticsStore::new(db.conn.clone());
             eprintln!("MINA: AnalyticsStore initialized");
             
+            // Start analytics metric collection
+            eprintln!("MINA: Starting analytics metric collection...");
+            let db_for_analytics = Arc::new(Mutex::new(Database {
+                conn: db.conn.clone(),
+            }));
+            let system_provider_for_analytics = Arc::new(Mutex::new(SystemProvider::new()));
+            crate::services::analytics_collector::AnalyticsCollector::start_collecting(
+                db_for_analytics,
+                system_provider_for_analytics,
+            );
+            eprintln!("MINA: Analytics metric collection started");
+            
             eprintln!("MINA: Initializing VectorStore...");
             let _ = VectorStore::new(db.conn.clone());
             eprintln!("MINA: VectorStore initialized");
@@ -190,6 +201,22 @@ pub fn run() {
                 eprintln!("WARNING: Failed to initialize default health checks: {}", e);
             }
             eprintln!("MINA: DevOpsStore initialized");
+            
+            // Start health check service (HTTP endpoints for Database and Redis)
+            eprintln!("MINA: Starting health check service...");
+            let health_check_service = crate::services::HealthCheckService::new(5433);
+            let health_service_for_spawn = health_check_service.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = health_service_for_spawn.start().await {
+                    eprintln!("WARNING: Failed to start health check service: {}", e);
+                    eprintln!("Note: Database and Redis health checks will not be available via HTTP");
+                } else {
+                    eprintln!("MINA: Health check service started on port 5433");
+                    eprintln!("MINA: Database health check available at http://127.0.0.1:5433/health/database");
+                    eprintln!("MINA: Redis health check available at http://127.0.0.1:5433/health/redis");
+                }
+            });
+            app.manage(health_check_service);
             
             // Start health check monitoring
             eprintln!("MINA: Starting health check monitoring...");
@@ -429,6 +456,7 @@ pub fn run() {
             commands::analytics::save_metric,
             commands::analytics::get_metrics,
             commands::analytics::get_statistics,
+            commands::analytics::test_analytics_collection,
             commands::rate_limit::create_rate_limit_bucket,
             commands::rate_limit::list_rate_limit_buckets,
             commands::rate_limit::get_rate_limit_bucket,
@@ -465,6 +493,8 @@ pub fn run() {
             commands::devops::update_health_check,
             commands::devops::list_health_checks,
             commands::devops::init_default_health_checks,
+            commands::devops::fix_health_check_urls,
+            commands::devops::check_health_check,
             commands::devops::create_alert,
             commands::devops::list_alerts,
             commands::devops::resolve_alert,

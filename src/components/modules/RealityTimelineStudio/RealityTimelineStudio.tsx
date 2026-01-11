@@ -115,7 +115,9 @@ export default function RealityTimelineStudio() {
   // Deep link: if /reality?tab=<temporalSubTab> is present, jump to Temporal Engine tab
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("tab")) {
+    const tabParam = params.get("tab");
+    // Only switch to temporal if the tab param is a temporal sub-tab
+    if (tabParam && ["timeline", "graph", "alerts", "watchlists", "search", "backtests", "workbench"].includes(tabParam)) {
       setActiveTab("temporal");
     }
   }, [location.search]);

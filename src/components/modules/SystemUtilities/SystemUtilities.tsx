@@ -171,10 +171,43 @@ export default function SystemUtilities() {
                     <div className="text-lg font-semibold">Manage Services</div>
                   </div>
                 </div>
-                <Button variant="secondary" className="w-full">
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const available = await invoke<boolean>("is_homebrew_available");
+                      if (available) {
+                        const services = await invoke<any[]>("list_services");
+                        errorHandler.showSuccess(`Found ${services.length} services. Check Packages section for details.`);
+                      } else {
+                        errorHandler.showError("Homebrew is not available on this system");
+                      }
+                    } catch (error) {
+                      errorHandler.showError("Failed to list services", error);
+                    }
+                  }}
+                >
                   View Services
                 </Button>
-                <Button variant="secondary" className="w-full">
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const available = await invoke<boolean>("is_homebrew_available");
+                      if (available) {
+                        const services = await invoke<any[]>("list_services");
+                        const running = services.filter((s: any) => s.running).length;
+                        errorHandler.showSuccess(`${running} of ${services.length} services are running`);
+                      } else {
+                        errorHandler.showError("Homebrew is not available on this system");
+                      }
+                    } catch (error) {
+                      errorHandler.showError("Failed to get service status", error);
+                    }
+                  }}
+                >
                   Service Status
                 </Button>
               </div>
@@ -191,10 +224,50 @@ export default function SystemUtilities() {
                     </div>
                   </div>
                 </div>
-                <Button variant="secondary" className="w-full">
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const metrics = await invoke<any>("get_system_metrics");
+                      const cpuUsage = metrics?.cpu?.usage || 0;
+                      const memUsage = metrics?.memory?.usage || 0;
+                      const diskUsage = diskInfo?.usage_percent || 0;
+                      
+                      const issues: string[] = [];
+                      if (cpuUsage > 90) issues.push(`High CPU usage: ${cpuUsage.toFixed(1)}%`);
+                      if (memUsage > 90) issues.push(`High memory usage: ${memUsage.toFixed(1)}%`);
+                      if (diskUsage > 90) issues.push(`High disk usage: ${diskUsage.toFixed(1)}%`);
+                      
+                      if (issues.length > 0) {
+                        errorHandler.showError(`Diagnostics found issues:\n${issues.join('\n')}`);
+                      } else {
+                        errorHandler.showSuccess("System diagnostics passed. All systems healthy.");
+                      }
+                    } catch (error) {
+                      errorHandler.showError("Failed to run diagnostics", error);
+                    }
+                  }}
+                >
                   Run Diagnostics
                 </Button>
-                <Button variant="secondary" className="w-full">
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const metrics = await invoke<any>("get_system_metrics");
+                      const report = `System Report:
+CPU: ${metrics?.cpu?.usage?.toFixed(1) || 'N/A'}% (${metrics?.cpu?.cores || 'N/A'} cores)
+Memory: ${metrics?.memory?.usage?.toFixed(1) || 'N/A'}% (${formatBytes(metrics?.memory?.used || 0)} / ${formatBytes(metrics?.memory?.total || 0)})
+Disk: ${diskInfo?.usage_percent?.toFixed(1) || 'N/A'}% (${formatBytes(diskInfo?.used || 0)} / ${formatBytes(diskInfo?.total || 0)})`;
+                      console.log(report);
+                      errorHandler.showSuccess("System report logged to console. Check developer tools.");
+                    } catch (error) {
+                      errorHandler.showError("Failed to generate report", error);
+                    }
+                  }}
+                >
                   View Reports
                 </Button>
               </div>

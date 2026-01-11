@@ -27,8 +27,10 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/docs/**"],
     },
   },
+  // Serve Docusaurus build in production
+  publicDir: 'public',
 }));
 

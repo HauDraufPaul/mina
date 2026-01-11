@@ -20,6 +20,14 @@ import {
   Timer,
   Search,
   BarChart3,
+  Newspaper,
+  TrendingUp,
+  DollarSign,
+  Calendar,
+  Grid3x3,
+  MessageSquare,
+  Heart,
+  Book,
 } from "lucide-react";
 
 const modules = [
@@ -42,6 +50,15 @@ const modules = [
   { path: "/rate-limit", icon: Timer, label: "Rate Limit", color: "amber" },
   { path: "/vector-search", icon: Search, label: "Vector Search", color: "cyan" },
   { path: "/analytics", icon: BarChart3, label: "Analytics", color: "green" },
+  { path: "/grid", icon: Grid3x3, label: "Grid Layout", color: "amber" },
+  { path: "/stock-news", icon: Newspaper, label: "Stock News", color: "cyan" },
+  { path: "/market-data", icon: TrendingUp, label: "Market Data", color: "green" },
+  { path: "/portfolio", icon: DollarSign, label: "Portfolio", color: "amber" },
+  { path: "/economic-calendar", icon: Calendar, label: "Economic Calendar", color: "cyan" },
+  { path: "/chart-studio", icon: BarChart3, label: "Chart Studio", color: "green" },
+  { path: "/messaging", icon: MessageSquare, label: "Messaging", color: "amber" },
+  { path: "/sentiment", icon: Heart, label: "Sentiment Analysis", color: "cyan" },
+  { path: "/docs", icon: Book, label: "Documentation", color: "amber" },
 ];
 
 export default function RadialHub() {
@@ -54,16 +71,16 @@ export default function RadialHub() {
         <p className="text-gray-400">Comprehensive System Assistant & Monitoring Platform</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
         {modules.map((module) => {
           const Icon = module.icon;
           const colorClass = `text-neon-${module.color}`;
           return (
             <Link key={module.path} to={module.path}>
-              <Card className="hover:scale-105 transition-transform cursor-pointer">
-                <div className="flex flex-col items-center text-center">
-                  <Icon className={`w-12 h-12 mb-4 ${colorClass}`} />
-                  <h3 className="text-lg font-semibold">{module.label}</h3>
+              <Card className="hover:scale-105 transition-transform cursor-pointer h-full">
+                <div className="flex flex-col items-center justify-center text-center p-3 h-full min-h-[100px]">
+                  <Icon className={`w-8 h-8 mb-2 flex-shrink-0 ${colorClass}`} />
+                  <h3 className="text-sm font-semibold line-clamp-2 break-words">{module.label}</h3>
                 </div>
               </Card>
             </Link>

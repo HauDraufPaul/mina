@@ -49,7 +49,12 @@ export default function TimelineView() {
     setLoading(true);
     try {
       const data = await invoke<TemporalEvent[]>("temporal_list_events", { limit: 200 });
-      setEvents(data);
+      setEvents(data || []);
+    } catch (err) {
+      console.error("Failed to load temporal events:", err);
+      setEvents([]);
+      // Show error to user
+      alert(`Failed to load temporal events: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -132,6 +137,9 @@ export default function TimelineView() {
       await invoke<number>("temporal_rebuild_events_mvp", { daysBack: 30 });
       await invoke<number>("temporal_rebuild_search_index", {});
       await loadEvents();
+    } catch (err) {
+      console.error("Failed to rebuild events:", err);
+      alert(`Failed to rebuild events: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRebuildBusy(false);
     }
@@ -142,7 +150,10 @@ export default function TimelineView() {
     setLoadingEvidence(true);
     try {
       const ev = await invoke<TemporalEvidence[]>("temporal_list_event_evidence", { eventId: evt.id });
-      setEvidence(ev);
+      setEvidence(ev || []);
+    } catch (err) {
+      console.error("Failed to load event evidence:", err);
+      setEvidence([]);
     } finally {
       setLoadingEvidence(false);
     }

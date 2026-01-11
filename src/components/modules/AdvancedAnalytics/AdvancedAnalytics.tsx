@@ -45,22 +45,24 @@ export default function AdvancedAnalytics() {
 
       const [metricsData, statsData] = await Promise.all([
         invoke<AnalyticsMetrics[]>("get_metrics", {
-          metricType: selectedMetric,
-          startTime,
-          endTime,
+          metric_type: selectedMetric,
+          start_time: startTime,
+          end_time: endTime,
           limit: 20,
-        }),
+        }).catch(() => []),
         invoke<Statistics>("get_statistics", {
-          metricType: selectedMetric,
-          startTime,
-          endTime,
-        }),
+          metric_type: selectedMetric,
+          start_time: startTime,
+          end_time: endTime,
+        }).catch(() => null),
       ]);
 
-      setMetrics(metricsData);
+      setMetrics(metricsData || []);
       setStatistics(statsData);
     } catch (error) {
       console.error("Failed to load analytics:", error);
+      setMetrics([]);
+      setStatistics(null);
     } finally {
       setLoading(false);
     }
@@ -116,8 +118,10 @@ export default function AdvancedAnalytics() {
                 </div>
                 <div className="space-y-2">
                   {metrics.length === 0 ? (
-                    <div className="text-center text-gray-400 py-4">
-                      No data available
+                    <div className="text-center text-gray-400 py-8">
+                      <Activity className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+                      <p className="mb-2">No data available yet</p>
+                      <p className="text-sm">Metrics are collected every second. Data will appear here shortly.</p>
                     </div>
                   ) : (
                     metrics.map((point, index) => (
@@ -176,7 +180,11 @@ export default function AdvancedAnalytics() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-400 py-4">No statistics available</div>
+                <div className="text-center text-gray-400 py-8">
+                  <Activity className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+                  <p>No statistics available</p>
+                  <p className="text-sm mt-2">Waiting for metric data to be collected...</p>
+                </div>
               )}
             </Card>
           </div>
@@ -213,7 +221,11 @@ export default function AdvancedAnalytics() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center text-gray-400 py-4">No data available</div>
+                <div className="text-center text-gray-400 py-8">
+                  <Activity className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+                  <p>No data available</p>
+                  <p className="text-sm mt-2">Metrics are being collected. Check back in a moment.</p>
+                </div>
               )}
             </div>
           </Card>

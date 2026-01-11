@@ -38,7 +38,11 @@ export default function GraphView() {
         maxNodes: 80,
         maxEdges: 300,
       });
-      setGraph(data);
+      setGraph(data || { nodes: [], edges: [] });
+    } catch (err) {
+      console.error("Failed to load entity graph:", err);
+      setGraph({ nodes: [], edges: [] });
+      alert(`Failed to load entity graph: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
